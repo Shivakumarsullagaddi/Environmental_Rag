@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Environmental AI Scientist — Evidence-Grounded Research Platform</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Chart.js for data visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- ================================================================ -->
+    <!-- 1. LEFT SIDEBAR: Conversation History & ADK Sessions             -->
+    <!-- ================================================================ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-header-top">
+          <div class="brand">
+            <div class="brand-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              </svg>
+            </div>
+            <div class="brand-info">
+              <h2>Environmental AI</h2>
+              <span class="brand-tag">Scientist Platform</span>
+            </div>
+          </div>
+          <button class="btn btn-icon sidebar-close-btn" id="close-sidebar-btn" title="Collapse History Sidebar" aria-label="Collapse History Sidebar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="11 17 6 12 11 7"></polyline>
+              <polyline points="18 17 13 12 18 7"></polyline>
+            </svg>
+          </button>
+        </div>
+        <button class="btn btn-primary new-conv-btn" id="new-conv-btn" title="Start new session">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          New Investigation
+        </button>
+      </div>
+
+      <div class="sidebar-section-title">
+        <span>INVESTIGATION HISTORY</span>
+      </div>
+
+      <div class="conversation-list" id="conversation-list">
+        <!-- Dynamically rendered conversations -->
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="system-status-card">
+          <div class="status-indicator-row">
+            <span class="pulse-dot"></span>
+            <span class="status-text">ADK Multi-Source Active</span>
+          </div>
+          <div class="status-details">
+            <div class="detail-item">
+              <span class="detail-label">LLM:</span>
+              <span class="detail-val">Gemini 3.5 Flash</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">KB:</span>
+              <span class="detail-val">BigQuery FastMCP</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Web:</span>
+              <span class="detail-val">Tavily MCP Engine</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ================================================================ -->
+    <!-- 2. MAIN CHAT AREA                                               -->
+    <!-- ================================================================ -->
+    <main class="chat-main" id="chat-main">
+      <header class="chat-header">
+        <div class="chat-header-left">
+          <button class="btn btn-icon-text sidebar-toggle-btn" id="toggle-sidebar-btn" title="Toggle Conversation History" aria-label="Toggle Conversation History">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+            <span class="btn-label">History</span>
+          </button>
+          <div class="chat-header-info">
+            <h1 id="active-title">New Investigation</h1>
+            <div class="session-badge" id="session-badge" title="Click to copy ADK Session ID">
+              <span class="session-lbl">ADK Session:</span>
+              <span class="session-id-val" id="active-session-id">Loading...</span>
+            </div>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button class="btn btn-icon-text panel-toggle-btn" id="toggle-panel-btn" title="Toggle Trace & Chart Panel" aria-label="Toggle Trace & Chart Panel">
+            <span class="btn-label">Trace & Chart</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="messages-container" id="messages-container">
+        <!-- Welcome Hero screen when conversation is empty -->
+        <div class="welcome-hero" id="welcome-hero">
+          <div class="hero-icon">🔬</div>
+          <h2>AI Environmental Research Assistant</h2>
+          <p class="hero-desc">
+            Evidence-grounded scientific reasoning powered by internal BigQuery peer-reviewed papers & textbooks, integrated with real-time Tavily environmental research.
+          </p>
+          <div class="suggestion-grid">
+            <div class="suggestion-card" data-query="What is biodiversity?">
+              <div class="card-badge badge-book">BOOK KNOWLEDGE</div>
+              <div class="card-title">What is biodiversity?</div>
+              <div class="card-desc">Definition Mode: Genetic, species, and ecosystem scales from BigQuery textbooks.</div>
+            </div>
+            <div class="suggestion-card" data-query="What does global research show about soil pH and bacterial richness?">
+              <div class="card-badge badge-research">RESEARCH EVIDENCE</div>
+              <div class="card-title">Soil pH vs Bacterial Richness</div>
+              <div class="card-desc">Empirical meta-analysis: 942 global biome samples and genus tolerance.</div>
+            </div>
+            <div class="suggestion-card" data-query="How does deforestation affect soil organic carbon, microbial biodiversity, and nutrient cycling?">
+              <div class="card-badge badge-hybrid">HYBRID PARALLEL</div>
+              <div class="card-title">Deforestation Impact on Soil</div>
+              <div class="card-desc">Parallel retrieval: 696 paired sites PNAS study + soil science mechanisms.</div>
+            </div>
+            <div class="suggestion-card" data-query="What are the current international biodiversity policy targets?">
+              <div class="card-badge badge-external">TAVILY EXTERNAL</div>
+              <div class="card-title">International Biodiversity Targets</div>
+              <div class="card-desc">Current policy lookup: Kunming-Montreal 23 targets and 30x30 framework.</div>
+            </div>
+            <div class="suggestion-card" data-query="SOC: 0.3%, rainfall: low, crop: monoculture wheat, region: semi-arid.">
+              <div class="card-badge badge-diag">SITE DIAGNOSIS</div>
+              <div class="card-title">Structured Site Context</div>
+              <div class="card-desc">Diagnosis Mode: Multi-metric dryland evaluation & targeted recommendations.</div>
+            </div>
+            <div class="suggestion-card" data-query="What does global research show about soil pH and bacterial richness? Chart the proportion of bacterial genera by pH tolerance.">
+              <div class="card-badge badge-chart">DATA CHART</div>
+              <div class="card-title">Bacterial pH Genera Chart</div>
+              <div class="card-desc">Quantitative visualization: Compare acid-tolerant vs alkaline-tolerant proportions.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Progress Banner -->
+      <div class="progress-banner" id="progress-banner" style="display: none;">
+        <div class="progress-spinner"></div>
+        <div class="progress-content">
+          <span class="progress-msg" id="progress-msg">Searching internal knowledge...</span>
+          <span class="progress-sub" id="progress-sub">Querying BigQuery vector database</span>
+        </div>
+      </div>
+
+      <!-- Chat Input Bar -->
+      <div class="chat-input-area">
+        <form class="input-form" id="chat-form">
+          <textarea
+            class="chat-textarea"
+            id="chat-input"
+            placeholder="Ask an environmental science question or enter site measurements..."
+            rows="1"
+            required
+          ></textarea>
+          <button type="submit" class="btn btn-send" id="send-btn" title="Send query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+        <div class="input-footer">
+          <span>Press <strong>Enter</strong> to send, <strong>Shift + Enter</strong> for new line</span>
+          <span class="provenance-note">Evidence strictly grounded in BigQuery & verified external sources</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================================================================ -->
+    <!-- 3. RETRIEVAL TRACE & CHART PANEL                                 -->
+    <!-- ================================================================ -->
+    <aside class="right-panel" id="right-panel">
+      <div class="panel-header">
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="graph-tab" id="tab-btn-graph" title="Visual execution flow graph">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            Execution Graph
+          </button>
+          <button class="panel-tab" data-tab="detail-tab" id="tab-btn-detail" title="Inspect tool payloads and JSON metadata">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            Tool Detail / Payload
+          </button>
+          <button class="panel-tab" data-tab="sources-tab" id="tab-btn-sources" title="Grounded literature & external citations">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            Sources
+          </button>
+          <button class="panel-tab" data-tab="chart-tab" id="tab-btn-chart" title="Dynamic scientific visualizations">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Scientific Chart
+            <span class="chart-badge" id="chart-avail-badge" style="display: none;">1</span>
+          </button>
+        </div>
+        <button class="btn btn-icon panel-close-btn" id="close-panel-btn" title="Collapse Trace Panel" aria-label="Collapse Trace Panel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="13 17 18 12 13 7"></polyline>
+            <polyline points="6 17 11 12 6 7"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <div class="panel-body">
+        
+        <!-- Tab 1: Execution Graph -->
+        <div class="tab-pane active" id="graph-tab">
+          <div class="trace-overview">
+            <div class="intent-box">
+              <span class="intent-lbl">DETECTED INTENT</span>
+              <span class="intent-badge" id="trace-intent-badge">Awaiting Query</span>
+            </div>
+            <div class="timing-box">
+              <span class="timing-lbl">LATENCY</span>
+              <span class="timing-val" id="trace-latency-val">—</span>
+            </div>
+          </div>
+
+          <div class="section-divider">
+            <span>ORCHESTRATION GRAPH (SEQUENTIAL / PARALLEL)</span>
+          </div>
+
+          <!-- Visual Execution Flow (Sequential vs Parallel) -->
+          <div class="execution-graph" id="execution-graph">
+            <div class="graph-placeholder">
+              <span>Execute a query to inspect live tool orchestration graph.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Tool Detail / Payload -->
+        <div class="tab-pane" id="detail-tab">
+          <div class="section-divider">
+            <span>TOOL PAYLOADS & RETRIEVAL METRICS</span>
+          </div>
+
+          <!-- Tool Call Details with JSON and arguments -->
+          <div class="tool-calls-list" id="tool-calls-list">
+            <div class="empty-trace">No tools invoked yet.</div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Sources Summary -->
+        <div class="tab-pane" id="sources-tab">
+          <div class="section-divider">
+            <span>CITED SCIENTIFIC SOURCES & PROVENANCE</span>
+          </div>
+          <div class="sources-list" id="sources-list">
+            <div class="empty-trace">No sources retrieved in current turn.</div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Scientific Chart -->
+        <div class="tab-pane" id="chart-tab">
+          <div class="chart-container" id="chart-container">
+            <div class="chart-empty-state" id="chart-empty-state">
+              <div class="empty-icon">📊</div>
+              <h3>No quantitative chart data in this response</h3>
+              <p>
+                Scientific charts render dynamically when responses include quantitative comparison, effect sizes, or taxonomic distributions from retrieved evidence.
+              </p>
+              <button class="btn btn-secondary btn-sm" id="btn-demo-chart">
+                Run Chart Example
+              </button>
+            </div>
+            <div class="chart-active-card" id="chart-active-card" style="display: none;">
+              <div class="chart-header-row">
+                <h4 id="chart-title">Soil Bacterial Genera Distribution</h4>
+                <span class="unit-badge" id="chart-unit">% of genera</span>
+              </div>
+              <div class="canvas-wrapper">
+                <canvas id="scientific-chart-canvas"></canvas>
+              </div>
+              <div class="chart-source-box">
+                <span class="src-label">Grounded Evidence:</span>
+                <span class="src-val" id="chart-source-val">Global analysis of soil bacterial genera...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Off-canvas backdrop for mobile drawer navigation -->
+  <div class="mobile-backdrop" id="mobile-backdrop"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

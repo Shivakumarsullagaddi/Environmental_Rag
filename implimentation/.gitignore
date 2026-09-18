@@ -1,0 +1,7 @@
+.env
+*.pyc
+__pycache__/
+*.session.json
+.sessions/
+scratch/
+.pytest_cache/

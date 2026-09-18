@@ -1,0 +1,190 @@
+[
+  {
+    "test_id": "QUERY A",
+    "test_title": "Definition Mode ('What is biodiversity?')",
+    "user_question": "What is biodiversity?",
+    "sources_used": "BigQuery",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "search_book_knowledge",
+        "args": {
+          "query": "biodiversity definitions scales genetic species ecosystem levels"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "search_book_knowledge"
+    ],
+    "relevant_evidence": "Definition Mode verified: Book only, Assessment + Evidence only, zero unrequested recommendation sections.",
+    "final_answer": "### Assessment\nBiodiversity, short for \"biological diversity,\" represents the variety of life on Earth across all structural and organizational scales. It encompasses genetic variation within individuals and populations, species richness and evenness within biological communities, and the structural complexity of ecosystems and landscapes. A complete scientific understanding of biodiversity includes not only the diversity of these distinct levels but also the complex functional interactions and the ecological and evolutionary processes that sustain them.\n\n### Evidence\n- **Book:** *Chapter 2: Definition of Biodiversity*, p. 11 \u2014 Defines biodiversity as \"the variety of life on Earth at all its levels, from genes to ecosystems, and the ecological and evolutionary processes that sustain it.\"\n- **Book:** *Chapter 4: Introduction to the Biodiversity Hierarchy*, p. 15 \u2014 Outlines the biodiversity hierarchy, describing how genetic diversity serves as the fundamental currency of variation across individuals, populations, and species, which in turn structures communities, ecosystems, and landscapes.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY B",
+    "test_title": "Research Explanation Mode ('What does global research show about soil pH and bacterial richness?')",
+    "user_question": "What does global research show about soil pH and bacterial richness?",
+    "sources_used": "BigQuery",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "search_research_evidence",
+        "args": {
+          "query": "soil pH bacterial richness global diversity relationship"
+        }
+      },
+      {
+        "name": "search_book_knowledge",
+        "args": {
+          "query": "soil pH bacterial richness diversity"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "search_research_evidence",
+      "search_book_knowledge"
+    ],
+    "relevant_evidence": "Research Explanation Mode verified: Research retrieved, cited by full title/journal, zero unrequested recommendation sections.",
+    "final_answer": "### Assessment\nGlobal macroecological analyses establish soil pH as the dominant driver shaping terrestrial bacterial richness and community composition, surpassing spatial and climatic factors. Across major biomes, bacterial genus richness exhibits a unimodal correlation with soil pH, increasing consistently from acidic levels to a peak or plateau near-neutral pH of 6.5. Although richness declines under alkaline conditions (pH > 7), this decrease is biome-dependent; it is highly pronounced in humid forest and tundra biomes ($R^2 > 0.42$) but buffered in arid grasslands and drylands ($R^2 < 0.32$). This asymmetric response is explained by genomic niche traits: while a comparable proportion of global bacterial genera have acidic (21%) or alkaline (18%) optima, 21% of genera are alkaline-tolerant compared to a mere 0.8% that are low-pH tolerant.\n\n### Evidence\n- **Research:** 'Global analysis of soil bacterial genera and diversity in response to pH' (*Soil Biology and Biochemistry*, 2024) \u2014 Analyzed 942 samples across seven global biomes to demonstrate that bacterial genus richness peaks around pH 6.5 and decline is buffered in alkaline environments because alkaline-tolerant genera (21%) vastly outnumber acid-tolerant genera (0.8%).\n- **Book:** *Introduction to Soil Science*, Ch. 31 & 32 \u2014 Outlines soil pH as a master variable regulating microbial activity, detailing USDA soil reaction classes and how acidic or basic conditions naturally constrain soil biological processes.\n\n### Limitations\nThe underlying global meta-analysis relied on taxonomic profiling at the genus level, which may overlook species- or strain-specific physiological adaptations, and noted that the exact secondary environmental factors driving community shifts in soils above neutral pH remain unresolved.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY C",
+    "test_title": "Hybrid Explanation Mode ('How does deforestation affect SOC, microbes, and nutrient cycling?')",
+    "user_question": "How does deforestation affect soil organic carbon, microbial biodiversity, and nutrient cycling?",
+    "sources_used": "BigQuery",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "search_book_knowledge",
+        "args": {
+          "query": "deforestation soil organic carbon microbial biodiversity nutrient cycling"
+        }
+      },
+      {
+        "name": "search_research_evidence",
+        "args": {
+          "query": "deforestation soil organic carbon microbial biodiversity nutrient cycling"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "search_book_knowledge",
+      "search_research_evidence"
+    ],
+    "relevant_evidence": "Hybrid Explanation Mode verified: Both sources used for mechanistic explanation; no unrequested recommendation generated.",
+    "final_answer": "### Assessment\nDeforestation and the conversion of native forests to managed ecosystems significantly deplete soil organic carbon (SOC) stocks, suppress nutrient cycling, and disrupt microbial community structures. While forest clearing can increase soil bacterial diversity, it simultaneously homogenizes fungal communities, shifting them from beneficial symbiont-dominated networks to pathogen-dominated states. This loss of symbiotic fungi weakens the biological capacity to secrete extracellular enzymes, reducing soil functional rates associated with organic matter decomposition and nutrient mineralization.\n\n### Evidence\n- **Research:** 'Deforestation impacts soil biodiversity and ecosystem services worldwide' (*PNAS*, 2024) \u2014 A global meta-analysis of 696 paired-site observations demonstrated that converting native forests to plantations, grasslands, or croplands leads to significant reductions in carbon storage and nutrient cycling. The resulting shift toward pathogen-dominated fungal communities reduces organic matter decomposition rates, while key chemical cycling functions\u2014including chitin degradation (N-acetylglucosaminidase activity), urea hydrolysis (urease), and phosphorus mineralization (phosphatase)\u2014are negatively affected. These microbial shifts are predominantly regulated by deforestation-induced changes in soil pH and total phosphorus, with wetter and warmer forest ecosystems showing the highest vulnerability.\n- **Book:** *Introduction to Soil Science*, Ch. 49 & 50 \u2014 Explains that soil biological communities drive the breakdown and stabilization of organic matter, nitrogen fixation, and nutrient cycling. Sustaining robust microbial and mycorrhizal networks depends on minimizing physical disturbances and maintaining diverse aboveground plant food sources (such as root exudates and forest litter), both of which are severely degraded when native forest cover is removed.\n\n### Limitations\nHistorically, most research on native forest conversion has been restricted to local or regional scales and has focused on single conversion types or isolated soil properties, rather than examining multi-dimensional soil biodiversity and abiotic climate factors globally.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY D",
+    "test_title": "Site-Specific Incomplete Diagnosis ('Biodiversity is declining on my land.')",
+    "user_question": "Biodiversity is declining on my land.",
+    "sources_used": "Direct Reasoning / Clarification",
+    "mcp_execution_type": "In-Process Context / Clarification",
+    "tool_calls": [],
+    "retrieved_sources": [],
+    "relevant_evidence": "Site-Specific Incomplete Mode verified: Refused ungrounded diagnosis and asked high-value clarifying questions.",
+    "final_answer": "### Assessment\nSeveral ecological drivers can contribute to biodiversity decline\u2014including land-use intensity, chemical stress, habitat simplification, and hydrological disturbance\u2014but the available information is insufficient to determine the site-specific cause.\n\n### Recommendation\nBefore a site-specific intervention can be recommended, please provide:\n1. Current land-use and crop type\n2. Recent pesticide and fertilizer application practices\n3. Which specific organism groups are declining (e.g., pollinators, earthworms, soil microbes, or plants)",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY E",
+    "test_title": "Structured Input Diagnosis ('SOC: 0.3%, rainfall: low, crop: monoculture wheat, region: semi-arid.')",
+    "user_question": "SOC: 0.3%, rainfall: low, crop: monoculture wheat, region: semi-arid.",
+    "sources_used": "BigQuery",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "search_book_knowledge",
+        "args": {
+          "query": "semi-arid dryland soil organic matter wheat residue"
+        }
+      },
+      {
+        "name": "search_research_evidence",
+        "args": {
+          "query": "semi-arid soil organic carbon conservation tillage crop diversification wheat monoculture"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "search_book_knowledge",
+      "search_research_evidence"
+    ],
+    "relevant_evidence": "Structured Input Mode verified: Parsed 4 variables, applied cautious reasoning, no unnecessary Tavily calls.",
+    "final_answer": "### Assessment\nThe supplied soil organic carbon (SOC) value of 0.3% is very low in many agricultural contexts, although its interpretation depends on soil texture, sampling depth, climate, and baseline. In semi-arid regions, baseline organic matter accumulation is naturally restricted by low rainfall and sparse plant biomass. Under these dry conditions, a continuous monoculture wheat system and conventional tillage practices can contribute to organic matter depletion, accelerated carbon oxidation, and the loss of protective soil cover. Implementing targeted conservation strategies may help retain moisture, enhance aggregate stability, and rebuild organic carbon over time.\n\n### Recommendation\n1. **Do:** Transition from conventional inversion tillage to reduced tillage or no-till management.\n   **Why:** Minimizing physical soil disturbance preserves aggregate structures, decreases the exposure of organic carbon to rapid oxidation, and protects sensitive soil biological communities.\n2. **Do:** Retain crop residues on the soil surface rather than burning, baling, or overgrazing them.\n   **Why:** Surface residues act as a physical mulch that lowers soil evaporation rates, buffers soil temperature extremes, and provides carbon inputs to support soil fauna.\n3. **Do:** Integrate drought-tolerant cover crops or grain legumes into the wheat rotation when seasonal moisture permits.\n   **Why:** Diverse cropping patterns introduce varied root exudates that help shift bacterial-dominated cropland soils toward more resilient microbial and fungal networks.\n\n### Impacted Metrics\n- Soil Organic Carbon (SOC)\n- Soil moisture retention (water-holding capacity)\n- Aggregate stability\n- Soil biological diversity (micro- and macro-fauna)\n\n### Evidence\n- **Book:** *Introduction to Soil Science*, Ch. 50 \u2014 Discusses soil organic matter importance, mechanisms of addition or loss, and explains how agricultural management alters food sources and physical disturbances.\n- **Research:** 'Global changes and their environmental stressors have a significant impact on soil biodiversity\u2014A meta-analysis' (iScience, 2024) \u2014 Shows that conventional tillage has a major negative impact on soil biodiversity (estimate = -0.93), whereas residue and mulch retention has a significant positive effect (adjusted Hedges' g = 0.43).\n\n### Time Horizon\nMedium-term (3\u20135 years) for initial moisture and structural improvements; long-term (>10 years) for stable SOC accumulation.\n\n### Limitations\nMoisture availability in semi-arid zones strongly constrains cover crop establishment, biomass production, and biological decomposition rates.\n\n### Confidence\nHigh \u2014 Well-established dryland agronomic principles supported by global meta-analyses.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY F",
+    "test_title": "Current/External Policy Mode ('What are the current international biodiversity policy targets?')",
+    "user_question": "What are the current international biodiversity policy targets?",
+    "sources_used": "BigQuery + Tavily (Hybrid)",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "tavily_search",
+        "args": {
+          "query": "Kunming-Montreal Global Biodiversity Framework 23 targets list summary 2030"
+        }
+      },
+      {
+        "name": "search_research_evidence",
+        "args": {
+          "query": "Kunming-Montreal Global Biodiversity Framework 2030 targets"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "tavily_search",
+      "search_research_evidence"
+    ],
+    "relevant_evidence": "Current/External Mode verified: Routed to Tavily, labeled strictly under External provenance.",
+    "final_answer": "### Assessment\nThe current global guidelines for safeguarding biodiversity are defined by the Kunming-Montreal Global Biodiversity Framework (GBF), which was adopted at COP15 in December 2022 to guide urgent international action through 2030. The framework mandates 23 action-oriented targets to halt and reverse global nature loss, organized under three core pillars: reducing threats to biodiversity, promoting sustainable resource use, and strengthening implementation and financing. Key 2030 commitments include the landmark \"30x30\" conservation initiative (Target 3), the restoration of at least 30% of degraded ecosystems (Target 2), and a 50% reduction in both pesticide-associated risks and excess environmental nutrient losses (Target 7).\n\n### Evidence\n- **External:** Kunming-Montreal Global Biodiversity Framework (Convention on Biological Diversity, 2022) \u2014 Establishes 23 actionable targets for 2030, including Target 3 (effectively conserving 30% of global terrestrial, inland water, and marine areas) and Target 2 (ensuring active restoration of at least 30% of degraded ecosystems).\n- **External:** Kunming-Montreal Global Biodiversity Framework Target 7 (Convention on Biological Diversity, 2022) \u2014 Outlines a commitment to reduce pollution risks by 2030, specifically halving the risks associated with pesticide use and highly hazardous chemicals, and reducing excess nutrient loss to the environment by at least half.\n\n### Limitations\nWhile these international policy targets establish a critical global benchmark, they are not legally binding under international law, meaning execution depends heavily on national-level policy translation, voluntary domestic funding, and the consistent establishment of localized monitoring indicators.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY G",
+    "test_title": "Deep External Research Mode ('Use Tavily deep search...')",
+    "user_question": "Use Tavily deep search to investigate recent biodiversity policy developments.",
+    "sources_used": "Tavily",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "tavily_research",
+        "args": {
+          "model": "mini",
+          "input": "recent international biodiversity policy developments Kunming-Montreal Global Biodiversity Framework COP16 2024 2025"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "tavily_research"
+    ],
+    "relevant_evidence": "Deep External Research Mode verified: Explicit deep search invoked tavily_research with External provenance.",
+    "final_answer": "### Assessment\nInternational biodiversity policy has transitioned from target-setting to operational execution following the UN Biodiversity Conference (COP16) in Cali (October 2024) and its resumed session in Rome (February 2025). Key milestones include the finalization of the Planning, Monitoring, Reporting, and Review (PMRR) mechanism to track progress on the 23 targets of the Kunming-Montreal Global Biodiversity Framework (GBF) and the launch of the \"Cali Fund\" for digital sequence information (DSI). However, national-level policy implementation remains slow and highly fragmented, with only a fraction of member states submitting fully updated National Biodiversity Strategies and Action Plans (NBSAPs).\n\n### Evidence\n- **External:** Resumed UN Biodiversity Conference COP16 (Rome, 2025) \u2014 Finalized the Resource Mobilisation Strategy and formally established the \"Cali Fund,\" a multilateral mechanism designed to channel funding from digital sequence information (DSI) on genetic resources back to biodiverse provider nations.\n- **External:** CBD Portal & IES Policy Outlook (2025) \u2014 Reports that only 44 Parties have formally updated and submitted their revised National Biodiversity Strategies and Action Plans (NBSAPs), though 119 have uploaded national targets, illustrating a notable implementation gap.\n- **External:** Nature Ecology & Evolution / Nature Tech Collective (2025 analysis) \u2014 Shows that while the PMRR framework was adopted to govern monitoring, reporting, and verification (MRV), approximately 12% of the GBF elements still lack indicators and overall monitoring coverage remains below 50%.\n- **External:** CBD Global Action Plan on Biodiversity and Health (2025) \u2014 Formally adopted a \"One Health\" framework to integrate ecosystem health with disease prevention, while reinforcing stakeholder engagement guidelines based on free, prior, and informed consent (FPIC).\n\n### Time Horizon\nShort- to medium-term, with initial national progress reports due in early 2026, culminating in the major GBF target deadline of 2030.\n\n### Confidence\nHigh \u2014 Formally verified through official UN Convention on Biological Diversity (CBD) COP16 outcomes and international environmental policy tracking platforms.",
+    "status": "PASS"
+  },
+  {
+    "test_id": "QUERY H",
+    "test_title": "Official Page Mode ('Find the official biodiversity framework page and summarize the pesticide target.')",
+    "user_question": "Find the official biodiversity framework page and summarize the pesticide target.",
+    "sources_used": "Tavily",
+    "mcp_execution_type": "Real Live MCP",
+    "tool_calls": [
+      {
+        "name": "tavily_search",
+        "args": {
+          "query": "Kunming-Montreal Global Biodiversity Framework official page pesticide target Target 7"
+        }
+      }
+    ],
+    "retrieved_sources": [
+      "tavily_search"
+    ],
+    "relevant_evidence": "Official Page Mode verified: Navigated external sources via Tavily (Calls: ['tavily_search']) and summarized pesticide target.",
+    "final_answer": "### Assessment\nThe official page for Target 7 of the Kunming-Montreal Global Biodiversity Framework (KMGBF) establishes global mandates to reduce pollution risks from all sources to levels that are not harmful to biodiversity and ecosystem functions by 2030. Specifically regarding pesticides, the target commits signatories to reducing the overall risk from pesticides and highly hazardous chemicals by at least half. Achieving this reduction relies on implementing science-based integrated pest management (IPM) while carefully balancing global food security and local livelihoods.\n\n### Evidence\n- **External:** Convention on Biological Diversity (Target 7 Official Portal: https://www.cbd.int/gbf/targets/7) \u2014 Formally commits to \"reducing the overall risk from pesticides and highly hazardous chemicals by at least half\" by 2030, alongside halving excess nutrient losses and working to eliminate plastic pollution.\n- **External:** European Parliament Implementation Briefing (2024) \u2014 Notes that the target specifically mandates a reduction in the \"overall risk\" of pesticides and highly hazardous chemicals rather than a blanket reduction in absolute usage volumes.\n\n### Limitations\nQuantifying a 50% risk reduction is methodologically complex, as the framework measures integrated ecotoxicological risk rather than raw application volume, requiring complex indicators like Aggregated Total Applied Toxicity (ATAT) that rely on data which may not be consistently reported globally.",
+    "status": "PASS"
+  }
+]

@@ -1,0 +1,106 @@
+[
+  {
+    "test": "1. What is biodiversity?",
+    "passed": true,
+    "tools": [
+      "search_book_knowledge"
+    ],
+    "intent": "Foundational Definition",
+    "has_chart": false,
+    "note": "Book retrieval visible, definition mode format without recommendations"
+  },
+  {
+    "test": "2. Soil pH vs bacterial richness",
+    "passed": true,
+    "tools": [
+      "search_research_evidence",
+      "search_book_knowledge"
+    ],
+    "intent": "Hybrid Mechanistic Explanation",
+    "has_chart": false,
+    "note": "Research retrieval visible, full title citation, no internal IDs"
+  },
+  {
+    "test": "3. Deforestation soil impact",
+    "passed": true,
+    "tools": [
+      "search_research_evidence",
+      "search_book_knowledge"
+    ],
+    "intent": "Hybrid Mechanistic Explanation",
+    "has_chart": false,
+    "note": "Hybrid retrieval verified (Tools: ['search_research_evidence', 'search_book_knowledge'], Parallel: True)"
+  },
+  {
+    "test": "4. Current biodiversity policy targets",
+    "passed": true,
+    "tools": [
+      "tavily_research",
+      "search_research_evidence"
+    ],
+    "intent": "Deep External Web Research",
+    "has_chart": false,
+    "note": "Tavily web search visible with External provenance labeling"
+  },
+  {
+    "test": "5. Deep external research",
+    "passed": true,
+    "tools": [
+      "tavily_research"
+    ],
+    "intent": "Deep External Web Research",
+    "has_chart": false,
+    "note": "Deep Tavily search executed (Tools: ['tavily_research'])"
+  },
+  {
+    "test": "6. Official page & pesticide target",
+    "passed": true,
+    "tools": [
+      "tavily_search"
+    ],
+    "intent": "Current Policy & External Validation",
+    "has_chart": false,
+    "note": "Official page navigation via Tavily and synthesis of Target 7 pesticide risk reduction"
+  },
+  {
+    "test": "7. Follow-up in same session",
+    "passed": false,
+    "tools": [],
+    "intent": null,
+    "has_chart": false,
+    "note": "ADK session context preserved across 3 messages in same session"
+  },
+  {
+    "test": "8. Quantitative question producing chart",
+    "passed": true,
+    "tools": [
+      "search_research_evidence",
+      "search_book_knowledge"
+    ],
+    "intent": "Hybrid Mechanistic Explanation",
+    "has_chart": true,
+    "chart_details": {
+      "type": "bar",
+      "title": "Proportion of Global Soil Bacterial Genera by pH Group",
+      "labels": [
+        "No Trend with pH",
+        "Low pH Optima",
+        "High pH Tolerant",
+        "Neutral pH Optima",
+        "High pH Optima",
+        "Low pH Tolerant"
+      ],
+      "values": [
+        26.0,
+        21.0,
+        21.0,
+        18.0,
+        18.0,
+        0.8
+      ],
+      "unit": "% of surveyed bacterial genera",
+      "source": "Global analysis of soil bacterial genera and diversity in response to pH (Soil Biology and Biochemistry, 2024)"
+    },
+    "note": "Valid structured chart data returned, cleanly stripped from markdown answer"
+  }
+]

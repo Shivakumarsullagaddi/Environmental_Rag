@@ -1,0 +1,34 @@
+# Environment variables and secrets
+.env
+*.env
+*.env.*
+*.secret
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+
+# Sessions and local state
+*.session.json
+.sessions/
+scratch/
+
+# Large raw PDF files
+*.pdf
+data_cleaning/scratch/*.pdf
+data_cleaning/scratch/
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Node
+node_modules/
+
+# OS specific
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,22 @@
+{
+  "project_id": "developer-491706",
+  "source_bucket": "agriculture_rag_data",
+  "source_location": "asia-south1",
+  "target_file": "books/biodiversity/biodiversity.pdf",
+  "target_book_id": "biodiversity",
+  "domain": "biodiversity",
+  "processed_bucket": "agriculture_rag_processed_us",
+  "processed_location": "US",
+  "bigquery_dataset": "darukaa_kb",
+  "bigquery_location": "US",
+  "vertex_location": "us-central1",
+  "gemini_model": "gemini-2.5-flash",
+  "embedding_model": "text-embedding-004",
+  "bq_connection": "developer-491706.us.vertex_ai_connection",
+  "chunking": {
+    "min_tokens": 150,
+    "target_tokens": 350,
+    "max_tokens": 500,
+    "overlap_sentences": 1
+  }
+}
