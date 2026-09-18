@@ -1127,6 +1127,7 @@ async def stream_adk_agent(
 # REST API Endpoints
 # ------------------------------------------------------------------------------
 @api_app.get("/")
+@api_app.head("/")
 async def get_index():
     """Serves the main frontend single-page interface."""
     index_file = _static_dir / "index.html"
@@ -1151,12 +1152,15 @@ async def health_check():
 
 
 @api_app.get("/healthz")
+@api_app.get("/livez")
+@api_app.get("/api/healthz")
 async def healthz():
     """Liveness probe: returns 200 OK without making any external or model calls."""
     return {"status": "ok"}
 
 
 @api_app.get("/readyz")
+@api_app.get("/api/readyz")
 async def readyz():
     """Readiness probe: returns 200 OK without making any external or model calls."""
     return {"status": "ok"}
