@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+**/.env*
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache
+data_cleaning/
+tests/
+implimentation/tests/
+*.log
+*.md
+architecture.png
+knowledge_retrieval_architecture.png

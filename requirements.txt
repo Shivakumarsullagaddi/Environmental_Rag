@@ -1,0 +1,15 @@
+# Pinned Production Dependencies for Environmental AI Scientist
+# Architecture: Google Cloud Run + FastAPI + Google ADK + Gemini 3.5 Flash + FastMCP + BigQuery
+
+google-adk==1.39.1
+google-genai==2.11.0
+mcp==1.26.0
+fastapi==0.135.1
+starlette==1.6.0
+uvicorn[standard]==0.41.0
+google-cloud-bigquery==3.43.0
+google-cloud-bigquery-storage==2.36.2
+python-dotenv==1.1.1
+pydantic==2.12.5
+pydantic-settings==2.13.1
+sse-starlette==3.3.2

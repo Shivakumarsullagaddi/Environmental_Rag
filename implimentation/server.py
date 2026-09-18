@@ -21,6 +21,7 @@ _root = Path(__file__).resolve().parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -35,7 +36,7 @@ from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactServ
 from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
 from google.genai import types
 
-from environmental_scientist.agent import root_agent
+from environmental_scientist.agent import root_agent, _tools
 from config import PROJECT_ID, BQ_DATASET
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -59,20 +60,60 @@ runner = Runner(
 # In-memory registry for user conversations metadata and message history
 _conversations: Dict[str, Dict[str, Any]] = {}
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manages application lifecycle, ensuring graceful cleanup of MCP toolsets."""
+    logger.info("Initializing Environmental AI Scientist Server...")
+    yield
+    logger.info("Shutting down Environmental AI Scientist Server, closing MCP toolsets...")
+    for tool in _tools:
+        if hasattr(tool, "close"):
+            try:
+                res = tool.close()
+                if asyncio.iscoroutine(res):
+                    await res
+                logger.info(f"Successfully closed toolset: {tool}")
+            except Exception as e:
+                logger.warning(f"Error closing toolset {tool}: {e}")
+
+
 # FastAPI Application
 api_app = FastAPI(
     title="Environmental AI Scientist API",
     description="Evidence-grounded environmental scientific intelligence API.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
-api_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS Configuration
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
+if allowed_origins_env == "*":
+    api_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+elif allowed_origins_env:
+    origins = [orig.strip() for orig in allowed_origins_env.split(",") if orig.strip()]
+    api_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Default: Allow local development origins with credentials; same-origin calls in production do not trigger CORS
+    api_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Mount static files directory
 _static_dir = _root / "static"
@@ -1107,6 +1148,18 @@ async def health_check():
         "dataset": BQ_DATASET,
         "sessions_count": len(_conversations),
     }
+
+
+@api_app.get("/healthz")
+async def healthz():
+    """Liveness probe: returns 200 OK without making any external or model calls."""
+    return {"status": "ok"}
+
+
+@api_app.get("/readyz")
+async def readyz():
+    """Readiness probe: returns 200 OK without making any external or model calls."""
+    return {"status": "ok"}
 
 
 @api_app.post("/api/conversations")
