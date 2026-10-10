@@ -1,0 +1,210 @@
+digraph SecurityGuardrailsArchitecture {
+    // Canvas & global styling
+    graph [
+        rankdir=TB,
+        splines=ortho,
+        nodesep=0.55,
+        ranksep=0.75,
+        bgcolor="#0B0F19",
+        fontname="Helvetica Neue, Arial, sans-serif",
+        fontsize=14,
+        fontcolor="#F3F4F6",
+        pad="0.5,0.5"
+    ];
+
+    node [
+        shape=box,
+        style="filled,rounded",
+        fontname="Helvetica Neue, Arial, sans-serif",
+        fontsize=11,
+        fontcolor="#FFFFFF",
+        penwidth=1.8,
+        margin="0.25,0.18"
+    ];
+
+    edge [
+        fontname="Helvetica Neue, Arial, sans-serif",
+        fontsize=10,
+        fontcolor="#94A3B8",
+        color="#38BDF8",
+        penwidth=1.8,
+        arrowsize=0.85
+    ];
+
+    // Subgraph: External User Layer
+    subgraph cluster_clients {
+        label="Client Interaction Layer (Public & Anonymous Access)";
+        style="rounded,dashed";
+        color="#38BDF8";
+        fontcolor="#38BDF8";
+        fontsize=13;
+        bgcolor="#111827";
+
+        user_in [
+            label="Public Browser / API Client\n- Zero mandatory login\n- Streaming SSE / REST JSON",
+            fillcolor="#1E293B",
+            color="#38BDF8"
+        ];
+    }
+
+    // Subgraph: Edge & Network Security Guardrails
+    subgraph cluster_edge_guardrails {
+        label="Edge & HTTP Ingress Guardrails (FastAPI Middleware)";
+        style="rounded,dashed";
+        color="#F59E0B";
+        fontcolor="#F59E0B";
+        fontsize=13;
+        bgcolor="#111827";
+
+        body_limit [
+            label="Layer 1: Request Body Limit Middleware\n- Max payload size <= 64 KB\n- Content-Length pre-flight check\n- Rejects payload stuffing with HTTP 413",
+            fillcolor="#1E293B",
+            color="#F59E0B"
+        ];
+
+        rate_limit [
+            label="Layer 2: Sliding-Window Rate Limiter\n- Sliding window per IP\n- Global: 60 req/min | Expensive/SSE: 15 req/min\n- Mitigates HTTP DoS with HTTP 429 + Retry-After",
+            fillcolor="#1E293B",
+            color="#F59E0B"
+        ];
+
+        sec_headers [
+            label="Layer 3: Strict HTTP Security Headers\n- Strict CSP (default-src 'self', frame-ancestors 'none')\n- X-Content-Type-Options: nosniff | X-Frame-Options: DENY\n- Referrer-Policy | Permissions-Policy: camera=(), mic=()",
+            fillcolor="#1E293B",
+            color="#F59E0B"
+        ];
+    }
+
+    // Subgraph: Public Session Memory Layer
+    subgraph cluster_session_memory {
+        label="Public Session Memory Layer";
+        style="rounded,dashed";
+        color="#10B981";
+        fontcolor="#10B981";
+        fontsize=13;
+        bgcolor="#111827";
+
+        public_store [
+            label="Global In-Memory Session Store (_conversations)\n- Fully public shared conversation history\n- Any user can create, list, retrieve, and continue sessions\n- Cost-effective single-instance in-memory design",
+            fillcolor="#1E293B",
+            color="#10B981"
+        ];
+    }
+
+    // Subgraph: Pre-Flight Computational & Code Guardrail
+    subgraph cluster_preflight_guardian {
+        label="Pre-Flight Security Guardian (Zero Model Latency & Zero Token Cost)";
+        style="rounded,dashed";
+        color="#EF4444";
+        fontcolor="#EF4444";
+        fontsize=13;
+        bgcolor="#111827";
+
+        guardian_inspect [
+            label="SecurityGuardian.inspect(query_text)\n- High-speed regex token scanning\n- Zero LLM tokens consumed & 0ms model latency",
+            fillcolor="#1E293B",
+            color="#EF4444"
+        ];
+
+        block_code [
+            label="BLOCKED: Code Execution Requests\n- exec(), eval(), os.system, subprocess\n- def palindrome, fork bomb, while True",
+            fillcolor="#7F1D1D",
+            color="#EF4444"
+        ];
+
+        block_dos [
+            label="BLOCKED: Computational DoS\n- e raised to the power of a million\n- repeat / loop 100,000 times",
+            fillcolor="#7F1D1D",
+            color="#EF4444"
+        ];
+
+        block_inject [
+            label="BLOCKED: Prompt Injection & Secrets\n- 'ignore previous instructions'\n- 'dump .env', API keys, credentials",
+            fillcolor="#7F1D1D",
+            color="#EF4444"
+        ];
+
+        immediate_refusal [
+            label="Immediate Safe Refusal\n- Friendly domain refusal returned\n- Model and BigQuery are never called",
+            fillcolor="#374151",
+            color="#9CA3AF"
+        ];
+    }
+
+    // Subgraph: Agent & Tool Guardrails
+    subgraph cluster_runtime_guardrails {
+        label="Agent Runtime & MCP Tool Security Guardrails";
+        style="rounded,dashed";
+        color="#8B5CF6";
+        fontcolor="#8B5CF6";
+        fontsize=13;
+        bgcolor="#111827";
+
+        agent_prompt [
+            label="Google ADK Agent & Gemini 3.5 Flash\n- System Prompt Section 14 Guardrails\n- Treats retrieved data as untrusted\n- Refuses arbitrary coding & instruction override",
+            fillcolor="#1E293B",
+            color="#8B5CF6"
+        ];
+
+        mcp_tools [
+            label="Custom FastMCP & BigQuery Tool Bounding\n- SQL identifier validation: ^[a-zA-Z0-9_]+$\n- Query clamped to 1,000 chars | top_k in [1, 20]\n- Eliminates SQL injection & runaway vector scans",
+            fillcolor="#1E293B",
+            color="#8B5CF6"
+        ];
+
+        storage_layer [
+            label="Google BigQuery Knowledge Layer\n- Parametric queries with ML.DISTANCE vector search\n- Curated textbook & research literature tables",
+            fillcolor="#1E293B",
+            color="#8B5CF6"
+        ];
+    }
+
+    // Subgraph: Output Sanitization & Frontend Rendering
+    subgraph cluster_output_security {
+        label="Egress Sanitization & Client Presentation";
+        style="rounded,dashed";
+        color="#EC4899";
+        fontcolor="#EC4899";
+        fontsize=13;
+        bgcolor="#111827";
+
+        output_sanitizer [
+            label="Backend Output Sanitizer\n- Strips API keys, internal tokens, and traceback details\n- Mathematical validation of chart schemas (NaN/Inf check)",
+            fillcolor="#1E293B",
+            color="#EC4899"
+        ];
+
+        frontend_purify [
+            label="DOMPurify Frontend Sanitization\n- DOMPurify.sanitize(marked.parse())\n- Strict HTML element allowlist\n- Prevents Stored & Reflected XSS",
+            fillcolor="#1E293B",
+            color="#EC4899"
+        ];
+    }
+
+    // Edges & Data Flow
+    user_in -> body_limit [label="1. HTTP POST / Stream"];
+    body_limit -> rate_limit [label="Passed (<= 64KB)"];
+    rate_limit -> sec_headers [label="Passed (< Rate Limit)"];
+    sec_headers -> public_store [label="Session Registration / Context"];
+    public_store -> guardian_inspect [label="Query Ingestion"];
+
+    // Guardian Branching
+    guardian_inspect -> block_code [label="Detected Code Exec", color="#EF4444", fontcolor="#EF4444"];
+    guardian_inspect -> block_dos [label="Detected DoS Loop", color="#EF4444", fontcolor="#EF4444"];
+    guardian_inspect -> block_inject [label="Detected Injection", color="#EF4444", fontcolor="#EF4444"];
+
+    block_code -> immediate_refusal [color="#EF4444"];
+    block_dos -> immediate_refusal [color="#EF4444"];
+    block_inject -> immediate_refusal [color="#EF4444"];
+    immediate_refusal -> output_sanitizer [label="Streamed Safe Response", color="#9CA3AF", fontcolor="#9CA3AF"];
+
+    // Clean Path to Agent
+    guardian_inspect -> agent_prompt [label="Safe Environmental Query", color="#10B981", fontcolor="#10B981"];
+    agent_prompt -> mcp_tools [label="MCP Tool Call"];
+    mcp_tools -> storage_layer [label="Bounded Vector Retrieval"];
+    storage_layer -> agent_prompt [label="Retrieved Evidence Chunks"];
+    agent_prompt -> output_sanitizer [label="Synthesized Response Stream"];
+
+    output_sanitizer -> frontend_purify [label="Sanitized Streamed SSE Events"];
+    frontend_purify -> user_in [label="Safe UI Render (Citations, Text, Charts)"];
+}

@@ -309,12 +309,22 @@ http://localhost:8000
 
 ---
 
-## Security
+## Security & Guardrails
 
-- **Local Secret Isolation:** All API credentials, GCP project IDs, and sensitive configurations reside solely in the local `.env` file and are excluded from Git via `.gitignore`.
-- **Restricted Data Exposure:** High-dimensional vector embeddings are processed natively inside BigQuery and are never transferred to or exposed in client payloads.
-- **Controlled MCP Sandboxing:** Tools execute within controlled subprocesses over Stdio with rigid input validation, preventing SQL injection or arbitrary query execution.
-- **Trace Redaction:** Internal model reasoning chains and system API keys are never rendered in client-facing event streams.
+The system integrates a multi-layered defense-in-depth model that protects public infrastructure and API quotas without forcing users to register or log in.
+
+<p align="center">
+  <img src="security_guardrails_architecture.png" alt="Security and Guardrails Architecture" width="850" />
+</p>
+
+### Key Security & Guardrail Layers
+- **Pre-Flight Security Guardian:** Scans every inbound query at 0 LLM token cost and sub-millisecond latency. Immediately rejects arbitrary code execution attempts (`exec`, `eval`, `os.system`, recursive palindrome algorithms), exponential computational DoS attacks ($e^{1,000,000} \times 100,000$), prompt injections (`ignore previous instructions`), and secret exfiltration attempts (`.env` dumping).
+- **Public In-Memory Session Memory:** Maintains a fully public in-memory conversation registry (`_conversations`) where any user can start, inspect, or continue conversations with zero authentication barriers or cookie tracking.
+- **Payload & Rate Limiting:** Enforces strict 64 KB request body limits and sliding-window rate limits (60 req/min global, 15 req/min for reasoning/SSE) returning HTTP 429 with `Retry-After`.
+- **BigQuery & FastMCP Input Validation:** Validates SQL identifiers against `^[a-zA-Z0-9_]+$` and bounds queries to 1,000 characters to prevent SQL injection and runaway scans.
+- **Frontend XSS Neutralization:** Integrates DOMPurify sanitization over all parsed Markdown, preventing reflected or stored script injection.
+- **Local Secret Isolation & Redaction:** Credentials and internal dataset configurations remain strictly within `.env` / Cloud Run environment variables and are never surfaced in client streams or health endpoints.
+
 
 ---
 

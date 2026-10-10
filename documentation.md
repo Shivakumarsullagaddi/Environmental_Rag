@@ -496,8 +496,52 @@ python3 -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-## Section 18 — Future Extensions
+## Section 18 — Security, Guardrails & Public Session Architecture
+
+To safeguard cloud resources and maintain public reliability without requiring mandatory user logins, the system implements a multi-layered defense-in-depth security model.
+
+<p align="center">
+  <img src="security_guardrails_architecture.png" alt="Security and Guardrails Architecture" width="900" />
+</p>
+
+### 1. Ingress & HTTP Guardrails (FastAPI Middleware)
+- **Request Body Size Limit (`RequestBodyLimitMiddleware`):** Rejects raw incoming HTTP payloads greater than **64 KB** (`MAX_REQUEST_BODY_BYTES`) with an immediate HTTP 413, mitigating payload buffer exhaustion attacks.
+- **Sliding-Window Rate Limiting (`RateLimiter`):** Enforces in-memory sliding-window throttling per client IP:
+  - Global API threshold: **60 requests/minute**.
+  - Expensive reasoning & SSE streaming queries: **15 requests/minute**.
+  - Exceeding thresholds returns an HTTP 429 response accompanied by a standard `Retry-After` header.
+- **Hardened HTTP Response Headers (`SecurityHeadersMiddleware`):**
+  - `Content-Security-Policy`: `default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: geolocation=(), microphone=(), camera=()`
+
+### 2. Pre-Flight Computational & Code Guardrail (`SecurityGuardian`)
+Before any query reaches the Google ADK runtime, Gemini model, or BigQuery vector database, `SecurityGuardian.inspect(query_text)` performs high-speed token and regex pattern scanning at **zero LLM token cost** and **sub-millisecond latency**:
+- **Arbitrary Code Execution Defense:** Detects and immediately blocks attempts to execute code or scripts (`exec(`, `eval(`, `os.system`, `subprocess`, recursive algorithms like `def palindrome`, fork bombs, and infinite loops).
+- **Computational DoS Defense:** Intercepts exponential or runaway arithmetic execution attempts (e.g., requests to calculate $e^{1,000,000}$ or loop execution 100,000 times).
+- **Prompt Injection & Credential Exfiltration Defense:** Blocks direct attempts to dump `.env` files, read secret environment variables, access server system paths (`/etc/passwd`, `/proc/`), or override system instructions (`ignore previous instructions`).
+- **Out-of-Domain Generic Programming Refusal:** Rejects generic computer science homework questions unrelated to environmental, agricultural, soil, or biodiversity science with an informative domain refusal message.
+
+### 3. Public In-Memory Session Memory
+- In accordance with the application's open accessibility principles, conversation session memory is stored in a **public in-memory registry** (`_conversations: Dict[str, Dict[str, Any]]`).
+- **Zero Authentication Barriers:** Users are not forced to authenticate or manage private cookies to consult the scientist.
+- **Public Visibility & Continuation:** Any client can create, list, retrieve, and resume conversation sessions across turns, while single-instance in-memory storage maintains low cost without external database overhead.
+
+### 4. BigQuery & FastMCP Tool Boundaries
+- **SQL Identifier Validation:** Dataset names and embedding model IDs are strictly validated against `^[a-zA-Z0-9_]+$` to prevent SQL identifier tampering.
+- **Bounded Tool Parameters:** Retrieval query strings are strictly clamped to a maximum of 1,000 characters, and `top_k` results are bounded between 1 and 20 chunks.
+
+### 5. Frontend & Egress Sanitization
+- **DOMPurify Client-Side XSS Protection:** All Markdown rendered by `marked.parse()` is sanitized through DOMPurify with an element and attribute allowlist, neutralizing malicious HTML injection or script injection.
+- **Trace & Secret Redaction:** System trace generators and health endpoints redact internal GCP project datasets and API keys, ensuring no sensitive credentials leak into public responses.
+
+---
+
+## Section 19 — Future Extensions
 
 1. **Geospatial Coordinates Integration:** Enabling users to provide latitude/longitude coordinates to automatically pull regional soil taxonomy (USDA SSURGO / ISRIC World Soil Information) and historical satellite vegetation indices.
 2. **Persistent Enterprise Cache:** Transitioning in-memory hash caches to a Redis cluster for horizontal multi-instance scaling.
 3. **Advanced Quantitative Scenario Modeling:** Embedding biophysical simulation modules (e.g., APSIM, DSSAT, or DayCent) into the MCP toolset to model crop yield and carbon sequestration curves dynamically.
+
