@@ -29,13 +29,11 @@ import pytest
 import math
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from server import api_app
+from server import api_app, _conversations
 from security import (
     SecurityGuardian,
     OutputSanitizer,
     rate_limiter,
-    conversation_store,
-    VisitorSessionManager,
     MAX_MESSAGE_LENGTH,
 )
 from retrieval.bigquery_retriever import BigQueryRetriever
@@ -45,10 +43,10 @@ client = TestClient(api_app)
 
 @pytest.fixture(autouse=True)
 def reset_stores():
-    """Reset rate limiter and conversation store between test cases."""
+    """Reset rate limiter and public conversation store between test cases."""
     rate_limiter._global_records.clear()
     rate_limiter._expensive_records.clear()
-    conversation_store._conversations.clear()
+    _conversations.clear()
 
 
 # ==============================================================================
@@ -63,9 +61,6 @@ def test_anonymous_visitor_can_create_and_query():
     assert "session_id" in data
     assert "title" in data
     session_id = data["session_id"]
-
-    # Verify visitor cookie was set
-    assert "env_visitor_id" in resp.cookies or "env_visitor_id" in client.cookies
 
     # 2. Submit environmental question with mocked ADK execution
     mock_result = {
@@ -90,74 +85,40 @@ def test_anonymous_visitor_can_create_and_query():
 
 
 # ==============================================================================
-# TEST 2: Anonymous Conversation Isolation (Visitor A vs Visitor B)
+# TEST 2: Public AI Conversation Session Sharing
 # ==============================================================================
-def test_conversation_isolation_between_visitors():
-    """Ensures Visitor A cannot list, read, post to, stream, or delete Visitor B's conversations."""
-    # Visitor A creates conversation
-    headers_a = {"X-Visitor-Id": "v_visitor_a_1234567890abcdef"}
-    resp_a = client.post("/api/conversations", headers=headers_a)
+def test_public_conversation_sharing_across_all_users():
+    """Ensures conversation session memory is public: anyone can list and access conversations."""
+    # User A creates conversation
+    resp_a = client.post("/api/conversations")
     assert resp_a.status_code == 200
     session_a = resp_a.json()["session_id"]
 
-    # Visitor B creates conversation
-    headers_b = {"X-Visitor-Id": "v_visitor_b_0987654321fedcba"}
-    resp_b = client.post("/api/conversations", headers=headers_b)
+    # User B creates conversation
+    resp_b = client.post("/api/conversations")
     assert resp_b.status_code == 200
     session_b = resp_b.json()["session_id"]
 
-    # 1. Visitor B lists conversations: MUST NOT see session_a
-    list_resp_b = client.get("/api/conversations", headers=headers_b)
-    assert list_resp_b.status_code == 200
-    sessions_seen_by_b = [c["session_id"] for c in list_resp_b.json()]
-    assert session_a not in sessions_seen_by_b
-    assert session_b in sessions_seen_by_b
+    # Anyone listing conversations can see both sessions publicly
+    list_resp = client.get("/api/conversations")
+    assert list_resp.status_code == 200
+    sessions_seen = [c["session_id"] for c in list_resp.json()]
+    assert session_a in sessions_seen
+    assert session_b in sessions_seen
 
-    # 2. Visitor B attempts to GET session_a: MUST be 404 (prevent session enumeration)
-    get_resp_b = client.get(f"/api/conversations/{session_a}", headers=headers_b)
-    assert get_resp_b.status_code == 404
-
-    # 3. Visitor B attempts to POST message to session_a: MUST be 404
-    post_resp_b = client.post(
-        f"/api/conversations/{session_a}/message",
-        json={"message": "Unauthorized probe query"},
-        headers=headers_b,
-    )
-    assert post_resp_b.status_code == 404
-
-    # 4. Visitor B attempts to STREAM session_a: MUST be 404
-    stream_resp_b = client.post(
-        f"/api/conversations/{session_a}/stream",
-        json={"message": "Unauthorized stream probe"},
-        headers=headers_b,
-    )
-    assert stream_resp_b.status_code == 404
-
-    # 5. Visitor B attempts to DELETE session_a: MUST be 404
-    del_resp_b = client.delete(f"/api/conversations/{session_a}", headers=headers_b)
-    assert del_resp_b.status_code == 404
-
-    # Confirm session_a is still intact for Visitor A
-    get_resp_a = client.get(f"/api/conversations/{session_a}", headers=headers_a)
+    # Anyone can get session_a
+    get_resp_a = client.get(f"/api/conversations/{session_a}")
     assert get_resp_a.status_code == 200
     assert get_resp_a.json()["session_id"] == session_a
 
 
 # ==============================================================================
-# TEST 3: Unknown / Non-existent Session ID Rejection
+# TEST 3: Unknown / Non-existent Session ID Retrieval Rejection
 # ==============================================================================
 def test_unknown_session_id_rejection():
-    """Non-existent session IDs must return 404, never silently create or attach."""
-    headers = {"X-Visitor-Id": "v_test_valid_visitor_12345678"}
-    resp = client.get("/api/conversations/non-existent-session-id-9999", headers=headers)
+    """Non-existent session IDs return 404 on GET requests."""
+    resp = client.get("/api/conversations/non-existent-session-id-9999")
     assert resp.status_code == 404
-
-    resp_msg = client.post(
-        "/api/conversations/non-existent-session-id-9999/message",
-        json={"message": "Hello?"},
-        headers=headers,
-    )
-    assert resp_msg.status_code == 404
 
 
 # ==============================================================================

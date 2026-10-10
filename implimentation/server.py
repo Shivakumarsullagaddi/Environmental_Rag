@@ -39,11 +39,8 @@ from google.genai import types
 from environmental_scientist.agent import root_agent, _tools
 from config import PROJECT_ID, BQ_DATASET
 from security import (
-    COOKIE_NAME,
     MAX_MESSAGE_LENGTH,
     MAX_REQUEST_BODY_BYTES,
-    VisitorSessionManager,
-    conversation_store,
     SecurityGuardian,
     rate_limiter,
     RequestBodyLimitMiddleware,
@@ -68,6 +65,10 @@ runner = Runner(
     artifact_service=artifact_service,
     credential_service=credential_service,
 )
+
+# In-memory public conversation store accessible across all users
+_conversations: Dict[str, Dict[str, Any]] = {}
+
 
 
 @asynccontextmanager
@@ -663,7 +664,7 @@ async def stream_adk_agent(
     if not is_safe:
         logger.info("[SECURITY][GUARDIAN_REFUSAL] request_id=%s query='%s'", req_id, query_text[:60])
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        conv = conversation_store.get_raw(session_id)
+        conv = _conversations.get(session_id)
         if conv:
             conv["messages"].append({
                 "message_id": user_msg_id,
@@ -714,7 +715,7 @@ async def stream_adk_agent(
 
     # Register user message and assistant placeholder in session history immediately
     user_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    conv = conversation_store.get_raw(session_id)
+    conv = _conversations.get(session_id)
     if conv:
         conv["messages"].append({
             "message_id": user_msg_id,
@@ -754,7 +755,7 @@ async def stream_adk_agent(
     if trivial_text is not None:
         logger.info("[BACKEND][FAST_PATH] request_id=%s trivial_response=True skipping_ADK=True", req_id)
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        conv = conversation_store.get_raw(session_id)
+        conv = _conversations.get(session_id)
         if conv:
             for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
@@ -996,7 +997,7 @@ async def stream_adk_agent(
             exc_info=True
         )
         # Update assistant placeholder to failed state
-        conv = conversation_store.get_raw(session_id)
+        conv = _conversations.get(session_id)
         if conv:
             for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
@@ -1038,7 +1039,7 @@ async def stream_adk_agent(
             "tool_calls=%d",
             req_id, _tool_call_index
         )
-        conv = conversation_store.get_raw(session_id)
+        conv = _conversations.get(session_id)
         if conv:
             for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
@@ -1117,7 +1118,7 @@ async def stream_adk_agent(
 
     # Save assistant message in conversation history for this exact request_id
     asst_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    conv = conversation_store.get_raw(session_id)
+    conv = _conversations.get(session_id)
     if conv:
         updated_existing = False
         for m in conv["messages"]:
@@ -1252,7 +1253,7 @@ async def readyz():
 
 @api_app.post("/api/conversations")
 async def create_conversation(request: Request):
-    """Creates a new ADK session and registers conversation state owned by the visitor."""
+    """Creates a new ADK session and registers public conversation state."""
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
     if not allowed:
@@ -1262,25 +1263,28 @@ async def create_conversation(request: Request):
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-
     session = await session_service.create_session(
-        app_name="environmental_scientist_app", user_id=visitor_id
+        app_name="environmental_scientist_app", user_id="scientist_user"
     )
-    conv_data = conversation_store.create(
-        session_id=session.id, owner_id=visitor_id, title="New Investigation"
-    )
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    conv_data = {
+        "session_id": session.id,
+        "title": "New Investigation",
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "messages": [],
+    }
+    _conversations[session.id] = conv_data
     return {
         "session_id": session.id,
         "title": conv_data["title"],
-        "created_at": conv_data["created_at"],
+        "created_at": now_iso,
     }
 
 
 @api_app.get("/api/conversations")
 async def list_conversations(request: Request):
-    """Lists conversations owned exclusively by the current anonymous visitor."""
+    """Lists all active conversations publicly ordered by last update."""
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
     if not allowed:
@@ -1290,14 +1294,22 @@ async def list_conversations(request: Request):
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-    return conversation_store.list_for_owner(visitor_id)
+    conv_list = []
+    for s_id, data in _conversations.items():
+        conv_list.append({
+            "session_id": s_id,
+            "title": data.get("title", "Environmental Session"),
+            "created_at": data.get("created_at"),
+            "updated_at": data.get("updated_at"),
+            "message_count": len(data.get("messages", [])),
+        })
+    conv_list.sort(key=lambda x: x["updated_at"] or "", reverse=True)
+    return conv_list
 
 
 @api_app.get("/api/conversations/{session_id}")
 async def get_conversation(session_id: str, request: Request):
-    """Retrieves conversation history if and only if owned by the current visitor."""
+    """Retrieves full conversation history publicly for any session."""
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
     if not allowed:
@@ -1307,25 +1319,36 @@ async def get_conversation(session_id: str, request: Request):
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
+    if session_id not in _conversations:
+        try:
+            adk_sess = await session_service.get_session(
+                app_name="environmental_scientist_app", user_id="scientist_user", session_id=session_id
+            )
+            if adk_sess:
+                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                _conversations[session_id] = {
+                    "session_id": session_id,
+                    "title": "Restored Investigation",
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                    "messages": [],
+                }
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
 
-    conv = conversation_store.get(session_id, owner_id=visitor_id)
-    if conv is None:
+    if session_id not in _conversations:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
-    return conv
+
+    return _conversations[session_id]
 
 
 @api_app.delete("/api/conversations/{session_id}")
 async def delete_conversation(session_id: str, request: Request):
-    """Deletes an active conversation owned by the current visitor."""
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-
-    deleted = conversation_store.delete(session_id, owner_id=visitor_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
-    return {"status": "deleted", "session_id": session_id}
+    """Deletes an active conversation from public memory."""
+    if session_id in _conversations:
+        del _conversations[session_id]
+        return {"status": "deleted", "session_id": session_id}
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
 
 
 @api_app.post("/api/conversations/{session_id}/message")
@@ -1335,7 +1358,7 @@ async def send_message_to_conversation(
     request: Request,
     stream: Optional[bool] = None,
 ):
-    """Executes a user message within an existing verified ADK conversation session.
+    """Executes a user message within an existing ADK conversation session.
     Supports both streaming SSE (via Google ADK StreamingMode.SSE) and synchronous JSON.
     """
     client_ip = request.client.host if request.client else "unknown"
@@ -1347,15 +1370,21 @@ async def send_message_to_conversation(
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-
-    conv = conversation_store.get(session_id, owner_id=visitor_id)
-    if conv is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation session not found or unauthorized.",
-        )
+    if session_id not in _conversations:
+        try:
+            await session_service.create_session(
+                app_name="environmental_scientist_app", user_id="scientist_user", session_id=session_id
+            )
+        except Exception:
+            pass
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        _conversations[session_id] = {
+            "session_id": session_id,
+            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "messages": [],
+        }
 
     req_id = req.request_id or str(uuid.uuid4())
 
@@ -1376,6 +1405,7 @@ async def send_message_to_conversation(
             },
         )
 
+    conv = _conversations[session_id]
     user_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
     user_msg_id = "msg-user-" + str(uuid.uuid4())
     asst_msg_id = "msg-asst-" + str(uuid.uuid4())
@@ -1426,7 +1456,7 @@ async def send_message_to_conversation(
 
 @api_app.post("/api/conversations/{session_id}/stream")
 async def stream_message_to_conversation(session_id: str, req: MessageRequest, request: Request):
-    """Dedicated SSE streaming endpoint with verified ownership and rate limiting."""
+    """Dedicated SSE streaming endpoint with public conversation access."""
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=True)
     if not allowed:
@@ -1436,15 +1466,21 @@ async def stream_message_to_conversation(session_id: str, req: MessageRequest, r
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-
-    conv = conversation_store.get(session_id, owner_id=visitor_id)
-    if conv is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation session not found or unauthorized.",
-        )
+    if session_id not in _conversations:
+        try:
+            await session_service.create_session(
+                app_name="environmental_scientist_app", user_id="scientist_user", session_id=session_id
+            )
+        except Exception:
+            pass
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        _conversations[session_id] = {
+            "session_id": session_id,
+            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "messages": [],
+        }
 
     req_id = req.request_id or str(uuid.uuid4())
     return StreamingResponse(
@@ -1460,7 +1496,7 @@ async def stream_message_to_conversation(session_id: str, req: MessageRequest, r
 
 @api_app.post("/api/chat")
 async def chat_endpoint(req: MessageRequest, request: Request):
-    """Convenience chat endpoint. Validates or creates an owned session."""
+    """Convenience chat endpoint. Auto-creates session in public store if none provided."""
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=True)
     if not allowed:
@@ -1470,27 +1506,20 @@ async def chat_endpoint(req: MessageRequest, request: Request):
             headers={"Retry-After": str(retry_after)},
         )
 
-    visitor_id = VisitorSessionManager.get_visitor_id(request)
-    request.state.visitor_id = visitor_id
-
     target_session_id = req.session_id
-    if target_session_id:
-        conv = conversation_store.get(target_session_id, owner_id=visitor_id)
-        if conv is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation session not found or unauthorized.",
-            )
-    else:
+    if not target_session_id or target_session_id not in _conversations:
         session = await session_service.create_session(
-            app_name="environmental_scientist_app", user_id=visitor_id
+            app_name="environmental_scientist_app", user_id="scientist_user"
         )
         target_session_id = session.id
-        conversation_store.create(
-            session_id=target_session_id,
-            owner_id=visitor_id,
-            title=req.message[:40] + ("..." if len(req.message) > 40 else ""),
-        )
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        _conversations[target_session_id] = {
+            "session_id": target_session_id,
+            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "messages": [],
+        }
 
     return await send_message_to_conversation(target_session_id, req, request)
 
