@@ -325,6 +325,9 @@ The system integrates a multi-layered defense-in-depth model that protects publi
 - **Frontend XSS Neutralization:** Integrates DOMPurify sanitization over all parsed Markdown, preventing reflected or stored script injection.
 - **Local Secret Isolation & Redaction:** Credentials and internal dataset configurations remain strictly within `.env` / Cloud Run environment variables and are never surfaced in client streams or health endpoints.
 
+> [!NOTE]
+> For a detailed, step-by-step breakdown of how queries pass through the security layers and reach Gemini, see [Query Lifecycle & Guardrail Flow](query_flow_and_guardrails.md).
+
 
 ---
 
