@@ -2,12 +2,15 @@
 
 import copy
 import logging
+import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 from google.cloud import bigquery
 from config import BQ_DATASET, BQ_EMBEDDING_MODEL, BQ_LOCATION, PROJECT_ID
 
 logger = logging.getLogger(__name__)
+
+_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 
 
 class BigQueryRetriever:
@@ -24,6 +27,13 @@ class BigQueryRetriever:
         self.location = location or BQ_LOCATION
         self.dataset_id = dataset_id or BQ_DATASET
         self.embedding_model = embedding_model or BQ_EMBEDDING_MODEL
+
+        # Strict validation of dataset and embedding model identifiers to prevent SQL injection
+        if not _IDENTIFIER_PATTERN.match(self.dataset_id):
+            raise ValueError(f"Invalid BigQuery dataset identifier: {self.dataset_id}")
+        if not _IDENTIFIER_PATTERN.match(self.embedding_model):
+            raise ValueError(f"Invalid BigQuery embedding model identifier: {self.embedding_model}")
+
         self._client: Optional[bigquery.Client] = None
         # Separate retrieval result caches by source/tool:
         self._query_embedding_cache: Dict[str, List[float]] = {}
@@ -263,7 +273,6 @@ class BigQueryRetriever:
         self._research_retrieval_cache[cache_key] = results
         print(f"[RETRIEVER][RETURN] tool_name=search_research_evidence result_count={len(results)} source=RESEARCH timestamp={time.strftime('%H:%M:%S')}", file=sys.stderr)
         return copy.deepcopy(results)
-
 
 
     def get_paper_metadata(self, paper_id_or_title: str) -> List[Dict[str, Any]]:

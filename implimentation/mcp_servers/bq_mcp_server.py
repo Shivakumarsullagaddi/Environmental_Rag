@@ -127,7 +127,9 @@ async def search_book_knowledge(query: str, top_k: int = 5) -> str:
         query: Semantic search query describing the foundational concept.
         top_k: Maximum number of relevant book chunks to return (1-20, default: 5).
     """
-    return await asyncio.to_thread(_search_books_sync, query, top_k)
+    clean_query = query.strip()[:1000] if query else ""
+    bounded_k = max(1, min(int(top_k), 20))
+    return await asyncio.to_thread(_search_books_sync, clean_query, bounded_k)
 
 
 @mcp.tool()
@@ -142,7 +144,9 @@ async def search_research_evidence(query: str, top_k: int = 5) -> str:
         query: Semantic search query describing the research question or relationship.
         top_k: Maximum number of relevant evidence units to return (1-20, default: 5).
     """
-    return await asyncio.to_thread(_search_research_sync, query, top_k)
+    clean_query = query.strip()[:1000] if query else ""
+    bounded_k = max(1, min(int(top_k), 20))
+    return await asyncio.to_thread(_search_research_sync, clean_query, bounded_k)
 
 
 @mcp.tool()
@@ -155,7 +159,8 @@ async def get_paper_metadata(paper_id_or_title: str) -> str:
     Args:
         paper_id_or_title: Paper identifier (e.g. 'paper_01') or title keyword.
     """
-    return await asyncio.to_thread(_get_paper_meta_sync, paper_id_or_title)
+    clean_val = paper_id_or_title.strip()[:256] if paper_id_or_title else ""
+    return await asyncio.to_thread(_get_paper_meta_sync, clean_val)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +38,18 @@ from google.genai import types
 
 from environmental_scientist.agent import root_agent, _tools
 from config import PROJECT_ID, BQ_DATASET
+from security import (
+    COOKIE_NAME,
+    MAX_MESSAGE_LENGTH,
+    MAX_REQUEST_BODY_BYTES,
+    VisitorSessionManager,
+    conversation_store,
+    SecurityGuardian,
+    rate_limiter,
+    RequestBodyLimitMiddleware,
+    SecurityHeadersMiddleware,
+    OutputSanitizer,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("environmental_server")
@@ -56,9 +68,6 @@ runner = Runner(
     artifact_service=artifact_service,
     credential_service=credential_service,
 )
-
-# In-memory registry for user conversations metadata and message history
-_conversations: Dict[str, Dict[str, Any]] = {}
 
 
 @asynccontextmanager
@@ -86,7 +95,11 @@ api_app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Configuration
+# 1. Security Headers & Request Body Size Limit Middleware
+api_app.add_middleware(SecurityHeadersMiddleware)
+api_app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
+
+# 2. CORS Configuration
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
 if allowed_origins_env == "*":
     api_app.add_middleware(
@@ -115,6 +128,16 @@ else:
         allow_headers=["*"],
     )
 
+# Global Exception Handler (Safe error reporting without leaking tracebacks)
+@api_app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    err_id = str(uuid.uuid4())
+    logger.error(f"[SERVER][EXCEPTION] error_id={err_id} path={request.url.path} error={exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An internal server error occurred.", "error_id": err_id},
+    )
+
 # Mount static files directory
 _static_dir = _root / "static"
 _static_dir.mkdir(exist_ok=True)
@@ -125,9 +148,14 @@ api_app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 # Pydantic Request Models
 # ------------------------------------------------------------------------------
 class MessageRequest(BaseModel):
-    message: str = Field(..., min_length=1, description="User scientific query or instruction")
-    session_id: Optional[str] = Field(None, description="Optional ADK session ID")
-    request_id: Optional[str] = Field(None, description="Unique turn request ID for stream correlation")
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_MESSAGE_LENGTH,
+        description="User scientific query or instruction",
+    )
+    session_id: Optional[str] = Field(None, max_length=128, description="Optional ADK session ID")
+    request_id: Optional[str] = Field(None, max_length=128, description="Unique turn request ID for stream correlation")
     stream: Optional[bool] = Field(default=False, description="Enable SSE streaming mode")
 
 
@@ -151,21 +179,9 @@ def extract_chart_data(text: str, query: str = "") -> Tuple[str, Optional[Dict[s
             else:
                 chart_obj = data
 
-            # Validate required fields
-            if (
-                isinstance(chart_obj.get("labels"), list)
-                and isinstance(chart_obj.get("values"), list)
-                and len(chart_obj["labels"]) == len(chart_obj["values"])
-                and len(chart_obj["labels"]) > 0
-            ):
-                clean_chart = {
-                    "type": str(chart_obj.get("type", "bar")).lower(),
-                    "title": str(chart_obj.get("title", "Environmental Data Visualization")),
-                    "labels": [str(l) for l in chart_obj["labels"]],
-                    "values": [float(v) for v in chart_obj["values"]],
-                    "unit": str(chart_obj.get("unit", "")),
-                    "source": str(chart_obj.get("source", "Peer-Reviewed Scientific Literature")),
-                }
+            # Strictly validate chart structure and numbers
+            clean_chart = OutputSanitizer.validate_chart(chart_obj)
+            if clean_chart:
                 cleaned_text = chart_pattern.sub("", text).strip()
                 return cleaned_text, clean_chart
         except Exception as e:
@@ -560,7 +576,21 @@ async def _execute_adk_agent_inner(
 async def execute_adk_agent(
     session_id: str, query_text: str
 ) -> Dict[str, Any]:
-    """Executes query with backoff retry on transient 429 quota errors."""
+    """Executes query with pre-flight security inspection and backoff retry on transient 429 quota errors."""
+    is_safe, refusal = SecurityGuardian.inspect(query_text)
+    if not is_safe:
+        logger.info(f"[SECURITY][GUARDIAN_REFUSAL] session_id={session_id} query='{query_text[:60]}'")
+        return {
+            "session_id": session_id,
+            "answer": refusal,
+            "chart": None,
+            "intent": "refusal",
+            "tools_used": [],
+            "tool_trace": [],
+            "sources": [],
+            "total_latency_sec": 0.0,
+        }
+
     max_retries = 5
     accumulated_tool_calls: List[Dict[str, Any]] = []
     accumulated_tool_traces: List[Dict[str, Any]] = []
@@ -628,10 +658,64 @@ async def stream_adk_agent(
     )
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ── Pre-flight Security Guardian Check ──────────────────────────────────
+    is_safe, refusal = SecurityGuardian.inspect(query_text)
+    if not is_safe:
+        logger.info("[SECURITY][GUARDIAN_REFUSAL] request_id=%s query='%s'", req_id, query_text[:60])
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        conv = conversation_store.get_raw(session_id)
+        if conv:
+            conv["messages"].append({
+                "message_id": user_msg_id,
+                "request_id": req_id,
+                "role": "user",
+                "text": query_text,
+                "content": query_text,
+                "timestamp": now_iso,
+            })
+            conv["messages"].append({
+                "message_id": asst_msg_id,
+                "request_id": req_id,
+                "role": "assistant",
+                "text": refusal,
+                "content": refusal,
+                "status": "complete",
+                "intent": "refusal",
+                "chart": None,
+                "tool_trace": [],
+                "sources": [],
+                "timestamp": now_iso,
+            })
+            conv["updated_at"] = now_iso
+
+        _sse_seq += 1
+        _start_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'start', 'user_message_id': user_msg_id, 'assistant_message_id': asst_msg_id})
+        yield f"data: {_start_payload}\n\n"
+
+        _sse_seq += 1
+        _tok_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'token', 'content': refusal, 'delta': refusal})
+        yield f"data: {_tok_payload}\n\n"
+
+        _sse_seq += 1
+        _done_payload = json.dumps({
+            'request_id': req_id,
+            'session_id': session_id,
+            'type': 'done',
+            'answer': refusal,
+            'answer_length': len(refusal),
+            'status': 'complete',
+            'intent': 'refusal',
+            'chart': None,
+            'tool_trace': [],
+            'sources': [],
+        })
+        yield f"data: {_done_payload}\n\n"
+        return
+
     # Register user message and assistant placeholder in session history immediately
     user_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    if session_id in _conversations:
-        conv = _conversations[session_id]
+    conv = conversation_store.get_raw(session_id)
+    if conv:
         conv["messages"].append({
             "message_id": user_msg_id,
             "request_id": req_id,
@@ -670,15 +754,16 @@ async def stream_adk_agent(
     if trivial_text is not None:
         logger.info("[BACKEND][FAST_PATH] request_id=%s trivial_response=True skipping_ADK=True", req_id)
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        if session_id in _conversations:
-            for m in _conversations[session_id]["messages"]:
+        conv = conversation_store.get_raw(session_id)
+        if conv:
+            for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
                     m["text"] = trivial_text
                     m["content"] = trivial_text
                     m["status"] = "complete"
                     m["timestamp"] = now_iso
                     break
-            _conversations[session_id]["updated_at"] = now_iso
+            conv["updated_at"] = now_iso
 
         _sse_seq += 1
         _tok_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'token', 'content': trivial_text, 'delta': trivial_text})
@@ -911,11 +996,12 @@ async def stream_adk_agent(
             exc_info=True
         )
         # Update assistant placeholder to failed state
-        if session_id in _conversations:
-            for m in _conversations[session_id]["messages"]:
+        conv = conversation_store.get_raw(session_id)
+        if conv:
+            for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
                     m["status"] = "failed"
-                    m["text"] = f"Scientific reasoning error: {str(e)}"
+                    m["text"] = "Scientific reasoning error encountered."
                     m["content"] = m["text"]
                     break
         _sse_seq += 1
@@ -952,8 +1038,9 @@ async def stream_adk_agent(
             "tool_calls=%d",
             req_id, _tool_call_index
         )
-        if session_id in _conversations:
-            for m in _conversations[session_id]["messages"]:
+        conv = conversation_store.get_raw(session_id)
+        if conv:
+            for m in conv["messages"]:
                 if m.get("request_id") == req_id and m.get("role") == "assistant":
                     m["status"] = "failed"
                     m["text"] = "Reasoning incomplete: ADK stream ended before final textual response."
@@ -1030,8 +1117,8 @@ async def stream_adk_agent(
 
     # Save assistant message in conversation history for this exact request_id
     asst_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    if session_id in _conversations:
-        conv = _conversations[session_id]
+    conv = conversation_store.get_raw(session_id)
+    if conv:
         updated_existing = False
         for m in conv["messages"]:
             if m.get("request_id") == req_id and m.get("role") == "assistant":
@@ -1138,16 +1225,13 @@ async def get_index():
 
 @api_app.get("/health")
 async def health_check():
-    """System health check and environmental agent readiness."""
+    """System health check without exposing internal schemas, datasets, or counts."""
     return {
         "status": "healthy",
+        "service": "environmental_ai_scientist",
         "bigquery": "connected",
         "adk_agent": "ready",
         "tavily": "available" if os.getenv("TAVILY_API_KEY") else "unavailable",
-        "agent": "environmental_scientist",
-        "project": PROJECT_ID,
-        "dataset": BQ_DATASET,
-        "sessions_count": len(_conversations),
     }
 
 
@@ -1167,64 +1251,81 @@ async def readyz():
 
 
 @api_app.post("/api/conversations")
-async def create_conversation():
-    """Creates a new ADK session and registers conversation state."""
+async def create_conversation(request: Request):
+    """Creates a new ADK session and registers conversation state owned by the visitor."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please wait before creating another session.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
     session = await session_service.create_session(
-        app_name="environmental_scientist_app", user_id="scientist_user"
+        app_name="environmental_scientist_app", user_id=visitor_id
     )
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    conv_data = {
-        "session_id": session.id,
-        "title": "New Investigation",
-        "created_at": now_iso,
-        "updated_at": now_iso,
-        "messages": [],
-    }
-    _conversations[session.id] = conv_data
+    conv_data = conversation_store.create(
+        session_id=session.id, owner_id=visitor_id, title="New Investigation"
+    )
     return {
         "session_id": session.id,
         "title": conv_data["title"],
-        "created_at": now_iso,
+        "created_at": conv_data["created_at"],
     }
 
 
 @api_app.get("/api/conversations")
-async def list_conversations():
-    """Lists all active conversations ordered by last update."""
-    conv_list = []
-    for s_id, data in _conversations.items():
-        conv_list.append({
-            "session_id": s_id,
-            "title": data.get("title", "Environmental Session"),
-            "created_at": data.get("created_at"),
-            "updated_at": data.get("updated_at"),
-            "message_count": len(data.get("messages", [])),
-        })
-    conv_list.sort(key=lambda x: x["updated_at"] or "", reverse=True)
-    return conv_list
+async def list_conversations(request: Request):
+    """Lists conversations owned exclusively by the current anonymous visitor."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+    return conversation_store.list_for_owner(visitor_id)
 
 
 @api_app.get("/api/conversations/{session_id}")
-async def get_conversation(session_id: str):
-    """Retrieves full conversation history and metadata for a specific session."""
-    if session_id not in _conversations:
-        try:
-            adk_sess = await session_service.get_session(
-                app_name="environmental_scientist_app", user_id="scientist_user", session_id=session_id
-            )
-            if adk_sess:
-                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                _conversations[session_id] = {
-                    "session_id": session_id,
-                    "title": "Restored Investigation",
-                    "created_at": now_iso,
-                    "updated_at": now_iso,
-                    "messages": [],
-                }
-        except Exception:
-            raise HTTPException(status_code=404, detail="Conversation session not found.")
+async def get_conversation(session_id: str, request: Request):
+    """Retrieves conversation history if and only if owned by the current visitor."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=False)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
-    return _conversations[session_id]
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
+    conv = conversation_store.get(session_id, owner_id=visitor_id)
+    if conv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
+    return conv
+
+
+@api_app.delete("/api/conversations/{session_id}")
+async def delete_conversation(session_id: str, request: Request):
+    """Deletes an active conversation owned by the current visitor."""
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
+    deleted = conversation_store.delete(session_id, owner_id=visitor_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation session not found.")
+    return {"status": "deleted", "session_id": session_id}
 
 
 @api_app.post("/api/conversations/{session_id}/message")
@@ -1234,28 +1335,30 @@ async def send_message_to_conversation(
     request: Request,
     stream: Optional[bool] = None,
 ):
-    """Executes a user message within an existing ADK conversation session.
+    """Executes a user message within an existing verified ADK conversation session.
     Supports both streaming SSE (via Google ADK StreamingMode.SSE) and synchronous JSON.
     """
-    if session_id not in _conversations:
-        try:
-            await session_service.create_session(
-                app_name="environmental_scientist_app", user_id="scientist_user"
-            )
-        except Exception:
-            pass
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        _conversations[session_id] = {
-            "session_id": session_id,
-            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
-            "created_at": now_iso,
-            "updated_at": now_iso,
-            "messages": [],
-        }
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=True)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please wait before submitting another query.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
+    conv = conversation_store.get(session_id, owner_id=visitor_id)
+    if conv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation session not found or unauthorized.",
+        )
 
     req_id = req.request_id or str(uuid.uuid4())
 
-    # If SSE streaming requested by query, body, or Accept header:
     is_streaming = (
         stream is True
         or req.stream is True
@@ -1273,7 +1376,6 @@ async def send_message_to_conversation(
             },
         )
 
-    conv = _conversations[session_id]
     user_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
     user_msg_id = "msg-user-" + str(uuid.uuid4())
     asst_msg_id = "msg-asst-" + str(uuid.uuid4())
@@ -1287,12 +1389,11 @@ async def send_message_to_conversation(
         "timestamp": user_time,
     })
 
-    # Execute query through ADK runner
     try:
         result = await execute_adk_agent(session_id, req.message)
     except Exception as e:
         logger.error(f"Error running ADK agent: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Scientific reasoning error: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Scientific reasoning error occurred.")
 
     asst_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
     conv["messages"].append({
@@ -1310,7 +1411,6 @@ async def send_message_to_conversation(
     })
     conv["updated_at"] = asst_time
 
-    # Auto-generate meaningful conversation title from first user query
     if len(conv["messages"]) <= 4:
         words = req.message.split()
         title_candidate = " ".join(words[:6])
@@ -1325,23 +1425,26 @@ async def send_message_to_conversation(
 
 
 @api_app.post("/api/conversations/{session_id}/stream")
-async def stream_message_to_conversation(session_id: str, req: MessageRequest):
-    """Dedicated SSE streaming endpoint using Google ADK StreamingMode.SSE."""
-    if session_id not in _conversations:
-        try:
-            await session_service.create_session(
-                app_name="environmental_scientist_app", user_id="scientist_user"
-            )
-        except Exception:
-            pass
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        _conversations[session_id] = {
-            "session_id": session_id,
-            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
-            "created_at": now_iso,
-            "updated_at": now_iso,
-            "messages": [],
-        }
+async def stream_message_to_conversation(session_id: str, req: MessageRequest, request: Request):
+    """Dedicated SSE streaming endpoint with verified ownership and rate limiting."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=True)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please wait before submitting another query.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
+    conv = conversation_store.get(session_id, owner_id=visitor_id)
+    if conv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation session not found or unauthorized.",
+        )
 
     req_id = req.request_id or str(uuid.uuid4())
     return StreamingResponse(
@@ -1356,24 +1459,40 @@ async def stream_message_to_conversation(session_id: str, req: MessageRequest):
 
 
 @api_app.post("/api/chat")
-async def chat_endpoint(req: MessageRequest):
-    """Convenience chat endpoint. Auto-creates session if none provided."""
+async def chat_endpoint(req: MessageRequest, request: Request):
+    """Convenience chat endpoint. Validates or creates an owned session."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip, is_expensive=True)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please wait before submitting another query.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    visitor_id = VisitorSessionManager.get_visitor_id(request)
+    request.state.visitor_id = visitor_id
+
     target_session_id = req.session_id
-    if not target_session_id or target_session_id not in _conversations:
+    if target_session_id:
+        conv = conversation_store.get(target_session_id, owner_id=visitor_id)
+        if conv is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation session not found or unauthorized.",
+            )
+    else:
         session = await session_service.create_session(
-            app_name="environmental_scientist_app", user_id="scientist_user"
+            app_name="environmental_scientist_app", user_id=visitor_id
         )
         target_session_id = session.id
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        _conversations[target_session_id] = {
-            "session_id": target_session_id,
-            "title": req.message[:40] + ("..." if len(req.message) > 40 else ""),
-            "created_at": now_iso,
-            "updated_at": now_iso,
-            "messages": [],
-        }
+        conversation_store.create(
+            session_id=target_session_id,
+            owner_id=visitor_id,
+            title=req.message[:40] + ("..." if len(req.message) > 40 else ""),
+        )
 
-    return await send_message_to_conversation(target_session_id, req)
+    return await send_message_to_conversation(target_session_id, req, request)
 
 
 # ------------------------------------------------------------------------------

@@ -1164,6 +1164,22 @@ document.addEventListener("DOMContentLoaded", () => {
       renderedHtml = escapeHtml(text).replace(/\n/g, "<br>");
     }
 
+    // Strictly sanitize rendered HTML using DOMPurify to eliminate all XSS vectors
+    if (window.DOMPurify) {
+      renderedHtml = DOMPurify.sanitize(renderedHtml, {
+        USE_PROFILES: { html: true },
+        ALLOWED_TAGS: [
+          "p", "br", "b", "i", "strong", "em", "u", "s", "strike", "blockquote",
+          "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "table", "thead",
+          "tbody", "tr", "th", "td", "pre", "code", "a", "hr", "span", "div"
+        ],
+        ALLOWED_ATTR: ["href", "title", "class", "target", "rel"]
+      });
+    } else {
+      // If DOMPurify fails to load, fall back to safe escaping
+      renderedHtml = escapeHtml(text).replace(/\n/g, "<br>");
+    }
+
     // Enhance structured H3 sections with CSS classes
     renderedHtml = renderedHtml
       .replace(/<h3>Assessment<\/h3>/gi, `<div class="section-assessment"><h3>Assessment</h3></div>`)
