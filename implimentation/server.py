@@ -50,6 +50,7 @@ from security import (
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("environmental_server")
+logger.setLevel(logging.INFO)
 
 # ------------------------------------------------------------------------------
 # App & Runner Initialization
@@ -74,7 +75,17 @@ _conversations: Dict[str, Dict[str, Any]] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manages application lifecycle, ensuring graceful cleanup of MCP toolsets."""
-    logger.info("Initializing Environmental AI Scientist Server...")
+    logger.info("================================================================================")
+    logger.info("[AGENT][STARTUP] Initializing Environmental AI Scientist Server...")
+    logger.info(f"[AGENT][SETUP] Root Agent: {root_agent.name}")
+    logger.info(f"[AGENT][SETUP] Model: {root_agent.model}")
+    logger.info(f"[AGENT][SETUP] Registered Tools: {[getattr(t, 'name', str(t)) for t in _tools]}")
+    logger.info(f"[MCP][CONFIG] Project ID: {PROJECT_ID} | BigQuery Dataset: {BQ_DATASET}")
+    has_tavily = any("tavily" in str(getattr(t, "name", t)).lower() or "tavily" in getattr(t, "description", "").lower() or "mcp" in str(type(t)).lower() for t in _tools[1:])
+    logger.info(f"[MCP][STATUS] Internal FastMCP: search_book_knowledge, search_research_evidence, get_paper_metadata")
+    if has_tavily:
+        logger.info(f"[MCP][STATUS] Remote Tavily MCP (Streamable HTTP): tavily-search, tavily-extract, tavily-research")
+    logger.info("================================================================================")
     yield
     logger.info("Shutting down Environmental AI Scientist Server, closing MCP toolsets...")
     for tool in _tools:
@@ -86,6 +97,7 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Successfully closed toolset: {tool}")
             except Exception as e:
                 logger.warning(f"Error closing toolset {tool}: {e}")
+
 
 
 # FastAPI Application
@@ -504,6 +516,10 @@ async def _execute_adk_agent_inner(
                         }
                         tool_calls_raw.append(call_dict)
                         tool_start_times[fc.name] = time.time()
+                        logger.info(
+                            "[AGENT][TOOL][DISPATCH] session_id=%s tool=%s step=%d args=%s",
+                            session_id, fc.name, step_counter, json.dumps(fc.args or {})[:300]
+                        )
 
                 for part in event.content.parts:
                     if part.function_response:
@@ -519,6 +535,12 @@ async def _execute_adk_agent_inner(
                             trace_meta["step"] = matching_call.get("step", 1)
                             trace_meta["is_parallel"] = matching_call.get("is_parallel", False)
                         tool_traces.append(trace_meta)
+                        logger.info(
+                            "[AGENT][TOOL][RESPONSE] session_id=%s tool=%s duration_ms=%.0f result_count=%d sources=%s",
+                            session_id, r_name, duration * 1000,
+                            trace_meta.get("result_count", 0),
+                            trace_meta.get("source_titles", [])[:3]
+                        )
                     elif part.text:
                         final_text += part.text
     except Exception as e:
@@ -645,18 +667,13 @@ async def stream_adk_agent(
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── [BACKEND][REQUEST][START] ────────────────────────────────────────────
+    logger.info("--------------------------------------------------------------------------------")
     logger.info(
-        "[BACKEND][REQUEST][START] request_id=%s session_id=%s endpoint=/api/.../message "
-        "timestamp=%s",
-        req_id, session_id, datetime.datetime.now(datetime.timezone.utc).isoformat()
-    )
-    # ─────────────────────────────────────────────────────────────────────────
-
-    # ── [BACKEND][REQUEST][PARSED] ───────────────────────────────────────────
-    logger.info(
-        "[BACKEND][REQUEST][PARSED] request_id=%s session_id=%s message_length=%d",
+        "[USER][QUERY][RECEIVED] request_id=%s session_id=%s length=%d",
         req_id, session_id, len(query_text)
     )
+    logger.info("[USER][QUERY][TEXT] \"%s\"", query_text)
+    logger.info("--------------------------------------------------------------------------------")
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Pre-flight Security Guardian Check ──────────────────────────────────
@@ -868,30 +885,14 @@ async def stream_adk_agent(
 
                         # ── [ADK][TOOL][START] ───────────────────────────────
                         logger.info(
-                            "[ADK][TOOL][START] request_id=%s tool_name=%s call_index=%d timestamp=%s",
-                            req_id, fc.name, _tool_call_index,
-                            datetime.datetime.now(datetime.timezone.utc).isoformat()
-                        )
-                        logger.info(
-                            "[ADK][TOOL][COUNT] request_id=%s total_tool_calls_so_far=%d",
-                            req_id, _tool_call_index
+                            "[AGENT][TOOL][DISPATCH] request_id=%s tool=%s step=%d args=%s",
+                            req_id, fc.name, step_counter, json.dumps(fc.args or {})[:300]
                         )
                         # ─────────────────────────────────────────────────────
 
                         _sse_seq += 1
                         _tool_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'tool', 'tool_name': fc.name, 'name': fc.name, 'status': 'running', 'step': step_counter, 'is_parallel': is_parallel})
-                        logger.info(
-                            "[BACKEND][SSE][SEND] request_id=%s event_type=tool sequence_number=%d "
-                            "tool_name=%s payload_size=%d timestamp=%s",
-                            req_id, _sse_seq, fc.name, len(_tool_payload),
-                            datetime.datetime.now(datetime.timezone.utc).isoformat()
-                        )
                         yield f"data: {_tool_payload}\n\n"
-                        logger.info(
-                            "[BACKEND][SSE][YIELDED] request_id=%s event_type=tool sequence_number=%d tool_name=%s timestamp=%s",
-                            req_id, _sse_seq, fc.name,
-                            datetime.datetime.now(datetime.timezone.utc).isoformat()
-                        )
 
                 for part in event.content.parts:
                     # 2. Tool Response Events
@@ -911,11 +912,10 @@ async def stream_adk_agent(
 
                         # ── [ADK][TOOL][END] ─────────────────────────────────
                         logger.info(
-                            "[ADK][TOOL][END] request_id=%s tool_name=%s duration_ms=%.0f "
-                            "success=True result_count=%d timestamp=%s",
+                            "[AGENT][TOOL][RESPONSE] request_id=%s tool=%s duration_ms=%.0f result_count=%d sources=%s",
                             req_id, r_name, duration * 1000,
                             trace_meta.get("result_count", 0),
-                            datetime.datetime.now(datetime.timezone.utc).isoformat()
+                            trace_meta.get("source_titles", [])[:3]
                         )
                         # ─────────────────────────────────────────────────────
 
@@ -1178,12 +1178,15 @@ async def stream_adk_agent(
         req_id, _sse_seq, len(_done_json), len(clean_answer),
         datetime.datetime.now(datetime.timezone.utc).isoformat()
     )
-    yield f"data: {_done_json}\n\n"
+    logger.info("--------------------------------------------------------------------------------")
     logger.info(
-        "[BACKEND][SSE][YIELDED] request_id=%s event_type=done sequence_number=%d timestamp=%s",
-        req_id, _sse_seq,
-        datetime.datetime.now(datetime.timezone.utc).isoformat()
+        "[AGENT][LLM][RESPONSE] request_id=%s intent=%s tools_used=%s answer_length=%d total_latency_sec=%.2f",
+        req_id, intent, tools_used, len(clean_answer), total_latency
     )
+    logger.info("[AGENT][LLM][ANSWER_PREVIEW] \"%s\"", clean_answer[:150].replace('\n', ' ') + ("..." if len(clean_answer) > 150 else ""))
+    logger.info("--------------------------------------------------------------------------------")
+
+    yield f"data: {_done_json}\n\n"
 
     # ── [BACKEND][REQUEST][END] ──────────────────────────────────────────────
     _request_status = "SUCCESS"

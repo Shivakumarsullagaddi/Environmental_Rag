@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Assemble MCP tools:
 # 1. Custom FastMCP Server over Stdio for BigQuery Books & Research retrieval
-# 2. Tavily MCP Server over Stdio for external web search
+# 2. Tavily MCP Server over Streamable HTTP for external web search
 _tools = [get_bigquery_mcp_toolset()]
 _tavily_tool = get_tavily_tool()
 if _tavily_tool is not None:
