@@ -170,10 +170,10 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.chatForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const message = dom.chatInput.value.trim();
-      if (!message || state.isLoading || dom.sendBtn.disabled) return;
+      if (!message || state.isLoading) return;
       const wordCount = message.split(/\s+/).filter(Boolean).length;
       if (wordCount > 500) {
-        alert("Query exceeds the 500-word limit. Please shorten your question before sending.");
+        alert("Query exceeds the 500-word limit (max 500 words). Please shorten your question before sending.");
         return;
       }
       await handleSendMessage(message);
@@ -183,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.chatInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (state.isLoading || dom.sendBtn.disabled) {
+        if (state.isLoading) {
           // Do not send while agent is actively generating; preserve user input intact
           return;
         }
@@ -530,7 +530,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // Message Handling & Execution
   // --------------------------------------------------------------------------
   async function handleSendMessage(messageText) {
-    if (state.isLoading || dom.sendBtn.disabled) return;
+    if (state.isLoading) return;
+
+    // Self-healing: if session is not yet created or active, create one immediately
+    if (!state.activeSessionId) {
+      try {
+        const sessResp = await fetch("/api/conversations", { method: "POST" });
+        if (sessResp.ok) {
+          const sessData = await sessResp.json();
+          state.activeSessionId = sessData.session_id;
+          if (dom.sessionIdVal) {
+            dom.sessionIdVal.textContent = state.activeSessionId.length > 18
+              ? state.activeSessionId.slice(0, 8) + "..." + state.activeSessionId.slice(-6)
+              : state.activeSessionId;
+          }
+        }
+      } catch (e) {
+        console.warn("Could not pre-provision session; proceeding with fallback chat:", e);
+      }
+    }
 
     state.isLoading = true;
     dom.sendBtn.disabled = true;
@@ -813,12 +831,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             // ─────────────────────────────────────────────────────────────
 
-            // Ignore events that are missing request_id or do not match an active request
-            if (!evtRequestId || !activeRequests.has(evtRequestId)) {
-              continue;
+            // Resolve targetController: prefer exact evtRequestId match, otherwise fall back to current send's assistantController
+            let targetController = null;
+            if (evtRequestId && activeRequests.has(evtRequestId)) {
+              targetController = activeRequests.get(evtRequestId);
+            } else if (assistantController) {
+              targetController = assistantController;
             }
 
-            const targetController = activeRequests.get(evtRequestId);
+            if (!targetController) {
+              continue;
+            }
 
             // 1. START EVENT
             if (eventData.type === "start") {
