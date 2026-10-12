@@ -2,6 +2,10 @@
 
 An evidence-grounded scientific AI assistant that reasons across soil health, biodiversity, land use, and climate dynamics to deliver peer-reviewed, multi-metric environmental guidance.
 
+<p align="center">
+  <img src="end_to_end_agentic_rag.png" alt="End-to-End Agentic RAG Architecture & Evaluation Flow" width="900" />
+</p>
+
 ---
 
 ## Overview
