@@ -404,6 +404,31 @@ async def run_evaluation(
             print("[RUN_EVAL] No baseline capture runs found. Please run capture_baselines.py first.")
             return 2
 
+    # Live Evaluation Guardrail Check
+    # If not dry_run, require RUN_LIVE_ADK_EVAL=1 in environment / .env
+    if not dry_run:
+        try:
+            from config import is_live_eval_enabled
+            live_allowed = is_live_eval_enabled()
+        except ImportError:
+            live_allowed = os.environ.get("RUN_LIVE_ADK_EVAL", "0").strip().lower() in {"1", "true", "yes"}
+
+        if not live_allowed:
+            print("\n" + "=" * 80)
+            print("[LIVE EVALUATION BLOCKED - GUARDRAIL ACTIVE]")
+            print("Live evaluation using Gemini LLM models is currently disabled by configuration.")
+            print(f"Current setting: RUN_LIVE_ADK_EVAL={os.environ.get('RUN_LIVE_ADK_EVAL', '0')}")
+            print("\nTo enable live evaluation:")
+            print("  1. Edit your .env file in 'implimentation/.env':")
+            print("       RUN_LIVE_ADK_EVAL=1")
+            print("  2. Or export it in your shell environment:")
+            print("       export RUN_LIVE_ADK_EVAL=1")
+            print("\nIf you want to run offline verification without model quota:")
+            print("  Run with the --dry-run flag:")
+            print(f"    python scripts/run_eval.py --category {category} {f'--run-id {run_id}' if run_id else ''} --dry-run")
+            print("=" * 80 + "\n")
+            return 2
+
     print("=" * 80)
     print(f"RUNNING INDEPENDENT EVALUATION (Target Run ID: {run_id})")
     print(f"Judge Model: {judge_model} | Pass Threshold: {pass_threshold * 100:.0f}%")

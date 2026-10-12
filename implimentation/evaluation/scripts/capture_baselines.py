@@ -162,6 +162,28 @@ async def capture_category(
     agent = None
     session_service = None
     if execute and not dry_run:
+        try:
+            from config import is_live_eval_enabled
+            live_allowed = is_live_eval_enabled()
+        except ImportError:
+            live_allowed = os.environ.get("RUN_LIVE_ADK_EVAL", "0").strip().lower() in {"1", "true", "yes"}
+
+        if not live_allowed:
+            print("\n" + "=" * 80)
+            print("[LIVE CAPTURE BLOCKED - GUARDRAIL ACTIVE]")
+            print("Live agent baseline capture using Gemini LLM models is currently disabled.")
+            print(f"Current setting: RUN_LIVE_ADK_EVAL={os.environ.get('RUN_LIVE_ADK_EVAL', '0')}")
+            print("\nTo enable live agent execution:")
+            print("  1. Edit your .env file in 'implimentation/.env':")
+            print("       RUN_LIVE_ADK_EVAL=1")
+            print("  2. Or export it in your shell environment:")
+            print("       export RUN_LIVE_ADK_EVAL=1")
+            print("\nIf you want to run offline verification without model calls:")
+            print("  Run with the --dry-run flag:")
+            print("    python scripts/capture_baselines.py --dry-run")
+            print("=" * 80 + "\n")
+            return []
+
         from environmental_scientist.agent import root_agent
         from google.adk.sessions.in_memory_session_service import InMemorySessionService
         agent = root_agent

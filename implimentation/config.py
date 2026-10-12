@@ -26,8 +26,15 @@ os.environ["GOOGLE_CLOUD_LOCATION"] = LOCATION
 # Exactly gemini-3.5-flash
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
-# Tavily API Key
-TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+# Live Evaluation Guardrail
+# 0 = Disabled (blocks live model/agent evaluations to prevent accidental spend/runs)
+# 1 = Enabled (allows live evaluation model calls)
+RUN_LIVE_ADK_EVAL: str = os.getenv("RUN_LIVE_ADK_EVAL", "0").strip()
+
+def is_live_eval_enabled() -> bool:
+    """Checks whether live evaluation execution is enabled via RUN_LIVE_ADK_EVAL=1."""
+    val = os.getenv("RUN_LIVE_ADK_EVAL", "0").strip().lower()
+    return val in {"1", "true", "yes"}
 
 def is_tavily_configured() -> bool:
     """Checks whether a valid Tavily API key is provided."""
@@ -42,3 +49,4 @@ def get_masked_tavily_key() -> str:
     if len(key) <= 8:
         return "********"
     return f"{key[:4]}...{key[-4:]}"
+
