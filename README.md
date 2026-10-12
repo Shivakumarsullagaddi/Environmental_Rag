@@ -326,8 +326,18 @@ The system integrates a multi-layered defense-in-depth model that protects publi
 - **Local Secret Isolation & Redaction:** Credentials and internal dataset configurations remain strictly within `.env` / Cloud Run environment variables and are never surfaced in client streams or health endpoints.
 
 > [!NOTE]
-> For a detailed, step-by-step breakdown of how queries pass through the security layers and reach Gemini, see [Query Lifecycle & Guardrail Flow](query_flow_and_guardrails.md).
+> For a detailed, step-by-step breakdown of how queries pass through the security layers and reach Gemini, see [Query Lifecycle & Guardrail Flow](docs/query_flow_and_guardrails.md).
 
+---
+
+## Documentation Index
+
+Comprehensive project documentation is available in the [`docs/`](docs/) directory:
+
+- [**System Documentation**](docs/documentation.md): Complete architecture, deployment guides, endpoints, and operational instructions.
+- [**Tool Budget & Hallucination Guard**](docs/TOOL_BUDGET_AND_HALLUCINATION_FIX.md): Specifications on the strict single-search tool budget and zero-hallucination handling on empty/failed external queries.
+- [**Query Flow & Security Guardrails**](docs/query_flow_and_guardrails.md): Complete lifecycle of requests from ingress validation to ADK agent synthesis.
+- [**MCP & Prompt Optimization**](docs/MCP_AND_PROMPT_OPTIMIZATION.md): Guidelines and benchmarks on FastMCP tools and agent prompt optimization.
 
 ---
 
@@ -335,11 +345,11 @@ The system integrates a multi-layered defense-in-depth model that protects publi
 
 | Component | Status | Technology / Details |
 | :--- | :---: | :--- |
-| **Agent Orchestrator** | Operational | Google ADK `1.39.1` with native multi-turn tool resumption |
+| **Agent Orchestrator** | Operational | Google ADK with native multi-turn tool resumption |
 | **Foundation Model** | Operational | `gemini-3.5-flash` with progressive SSE token streaming |
 | **Internal Vector Engine**| Operational | Google BigQuery ML (`text-embedding-004`, 768 dimensions) |
 | **Tool Protocol** | Operational | Custom FastMCP server over Stdio (`bq_mcp_server.py`) |
-| **External Web Research**| Operational | Tavily MCP over Stdio (`tavily-mcp` via npx) |
+| **External Web Research**| Operational | Tavily MCP over Streamable HTTP (`tavily-mcp`) |
 | **Knowledge Base** | Operational | 615 textbook chunks + 196 peer-reviewed research evidence units |
 | **Multi-Turn Sessions** | Operational | In-memory session tracking with correlation IDs (`request_id`, `session_id`) |
 | **Response Delivery** | Operational | Server-Sent Events (SSE) yielding real-time progressive tokens and tool status |
