@@ -148,11 +148,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Formats Pydantic/FastAPI validation errors into a clean, concise single-line message."""
     errors = exc.errors()
     # Check if any error is due to string/message length
-    is_length_error = any("length" in err.get("type", "") or "max_length" in err.get("type", "") for err in errors)
+    is_length_error = any(
+        "too_long" in str(err.get("type", ""))
+        or "length" in str(err.get("type", ""))
+        or "max_length" in str(err.get("ctx", {}))
+        or "3000" in str(err.get("msg", ""))
+        for err in errors
+    )
     if is_length_error:
         detail_msg = "Word limit exceeded (max 500 words)."
     else:
-        # Build concise error message from first error
         first_err = errors[0] if errors else {}
         detail_msg = first_err.get("msg", "Invalid request parameters.")
     return JSONResponse(
