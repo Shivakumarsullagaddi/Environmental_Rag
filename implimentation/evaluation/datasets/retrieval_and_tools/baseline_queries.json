@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "category": "retrieval_and_tools",
+  "description": "Approved curated baseline queries evaluating factual responses, evidence grounding, tool selection, metadata retrieval, citations, live research, and honest gap handling.",
+  "cases": [
+    {
+      "case_id": "rt01_biodiversity_definition",
+      "query": "What is biodiversity? Explain its main levels and why it matters.",
+      "purpose": "Evaluate foundational environmental concept definition, levels of biodiversity, and ecological significance grounded in textbook knowledge.",
+      "expected_behavior": "Query search_book_knowledge to retrieve foundational definitions and mechanisms; produce a rigorous explanation citing foundational concepts; no unrequested management recommendations.",
+      "expected_tools": ["search_book_knowledge"],
+      "prohibited_behaviors": [
+        "Calling unnecessary web search tools",
+        "Fabricating textbook citations",
+        "Inventing unrequested recommendations"
+      ],
+      "live_data": false,
+      "execution_mode": "live_agent",
+      "enabled": true
+    },
+    {
+      "case_id": "rt02_research_metadata",
+      "query": "Find a relevant published study on biodiversity loss in India from the indexed research corpus. Summarize its key findings and provide its exact title, authors, journal, and publication year, based only on the available records.",
+      "purpose": "Evaluate empirical research retrieval, synthesis, and bibliographical metadata extraction from indexed research records.",
+      "expected_behavior": "Call search_research_evidence to find empirical research on biodiversity loss in India; call get_paper_metadata when bibliographic details are needed; cite real papers by exact title and journal; acknowledge if metadata is unavailable.",
+      "expected_tools": ["search_research_evidence", "get_paper_metadata"],
+      "prohibited_behaviors": [
+        "Fabricating paper titles, authors, DOIs, or publication years",
+        "Exposing internal database identifiers like 'paper_01'",
+        "Claiming a paper exists if not present in the indexed corpus"
+      ],
+      "live_data": false,
+      "execution_mode": "live_agent",
+      "enabled": true
+    },
+    {
+      "case_id": "rt03_bengaluru_biodiversity",
+      "query": "What is the current biodiversity situation in Bengaluru? Use recent credible sources and state relevant publication or update dates.",
+      "purpose": "Evaluate live external web research, source credibility, and temporal qualification for contemporary urban biodiversity.",
+      "expected_behavior": "Utilize available external search tools (tavily_search) respecting single search-call budget; extract recent credible reports; state observation or publication dates; clearly distinguish verified findings from uncertain points.",
+      "expected_tools": ["tavily_search"],
+      "prohibited_behaviors": [
+        "Calling tavily_search multiple times in a single turn",
+        "Hallucinating recent dates or unverified local species counts",
+        "Treating speculative blog content as verified empirical fact"
+      ],
+      "live_data": true,
+      "execution_mode": "live_agent",
+      "enabled": true
+    },
+    {
+      "case_id": "rt04_mumbai_aqi",
+      "query": "What is the latest available AQI for Mumbai? State the observation date or time, location, and source. If a reliable current reading is unavailable, say so.",
+      "purpose": "Evaluate live environmental metric retrieval, single-turn budget enforcement, timestamp fidelity, and honest gap handling.",
+      "expected_behavior": "Attempt an external web lookup using tavily_search once; report the observation timestamp, station/city location, and source index; if rate limited or unavailable, state so honestly without fabricating an AQI number.",
+      "expected_tools": ["tavily_search"],
+      "prohibited_behaviors": [
+        "Calling tavily_search multiple times",
+        "Fabricating an AQI number if search fails or is empty",
+        "Claiming search snippets are direct real-time hardware telemetry"
+      ],
+      "live_data": true,
+      "execution_mode": "live_agent",
+      "enabled": true
+    }
+  ]
+}

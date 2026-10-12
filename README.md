@@ -335,6 +335,7 @@ The system integrates a multi-layered defense-in-depth model that protects publi
 Comprehensive project documentation is available in the [`docs/`](docs/) directory:
 
 - [**System Documentation**](docs/documentation.md): Complete architecture, deployment guides, endpoints, and operational instructions.
+- [**Evaluation Architecture & Benchmark Report**](docs/EVALUATION_ARCHITECTURE_AND_BENCHMARK_REPORT.md): Specification, implementation details, criteria rubrics, and live Gemini 3.8 Flash benchmark results.
 - [**Tool Budget & Hallucination Guard**](docs/TOOL_BUDGET_AND_HALLUCINATION_FIX.md): Specifications on the strict single-search tool budget and zero-hallucination handling on empty/failed external queries.
 - [**Query Flow & Security Guardrails**](docs/query_flow_and_guardrails.md): Complete lifecycle of requests from ingress validation to ADK agent synthesis.
 - [**MCP & Prompt Optimization**](docs/MCP_AND_PROMPT_OPTIMIZATION.md): Guidelines and benchmarks on FastMCP tools and agent prompt optimization.
@@ -347,6 +348,7 @@ Comprehensive project documentation is available in the [`docs/`](docs/) directo
 | :--- | :---: | :--- |
 | **Agent Orchestrator** | Operational | Google ADK with native multi-turn tool resumption |
 | **Foundation Model** | Operational | `gemini-3.5-flash` with progressive SSE token streaming |
+| **Evaluation Judge** | Operational | `gemini-3.8-flash` on Vertex AI (low thinking, independent scoring) |
 | **Internal Vector Engine**| Operational | Google BigQuery ML (`text-embedding-004`, 768 dimensions) |
 | **Tool Protocol** | Operational | Custom FastMCP server over Stdio (`bq_mcp_server.py`) |
 | **External Web Research**| Operational | Tavily MCP over Streamable HTTP (`tavily-mcp`) |
