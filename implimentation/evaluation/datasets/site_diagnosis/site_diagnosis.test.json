@@ -1,0 +1,37 @@
+{
+  "eval_set_id": "evalset_site_diagnosis",
+  "name": "Site Diagnosis & Clarification Regression Set",
+  "description": "Tests incomplete site scenarios to ensure clarification questions are asked rather than ungrounded diagnosis.",
+  "creation_timestamp": 1700000000.0,
+  "eval_cases": [
+    {
+      "eval_id": "site_case_01_incomplete_biodiversity_decline",
+      "conversation": [
+        {
+          "invocation_id": "inv_site_01",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Biodiversity is declining on my land."
+              }
+            ]
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "To provide an evidence-grounded diagnosis, please clarify key site parameters: 1) What specific species or indicators are declining? 2) What is the historical land use and crop rotation? 3) What are the local soil and climatic conditions?"
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 1700000000.0
+        }
+      ],
+      "creation_timestamp": 1700000000.0
+    }
+  ]
+}

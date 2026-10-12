@@ -1,0 +1,37 @@
+{
+  "eval_set_id": "evalset_evidence_gaps",
+  "name": "Evidence Gaps & Zero Hallucination Regression Set",
+  "description": "Validates that telemetry queries with zero corpus support result in honest disclosure rather than hallucination or tool loop.",
+  "creation_timestamp": 1700000000.0,
+  "eval_cases": [
+    {
+      "eval_id": "gap_case_01_unsupported_farm_telemetry",
+      "conversation": [
+        {
+          "invocation_id": "inv_gap_01",
+          "user_content": {
+            "parts": [
+              {
+                "text": "What is the real-time sensor reading for Farm 42 soil moisture right now?"
+              }
+            ]
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "I do not have access to real-time farm sensor telemetry or private IoT feeds for Farm 42. I can only analyze indexed scientific literature and textbook knowledge."
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 1700000000.0
+        }
+      ],
+      "creation_timestamp": 1700000000.0
+    }
+  ]
+}

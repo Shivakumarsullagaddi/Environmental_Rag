@@ -32,3 +32,6 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# Evaluation results
+implimentation/evaluation/results/
