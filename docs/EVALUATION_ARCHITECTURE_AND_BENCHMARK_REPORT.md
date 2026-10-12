@@ -86,6 +86,55 @@ implimentation/evaluation/
     └── eval_1791807571/                        # Live Retrieval & Tools evaluation report
 ```
 
+### 2.3 Understanding the Core Components: JSON Artifact & Evaluation Rubrics
+
+The evaluation judge operates by comparing two fundamental inputs: the **JSON Artifact** and the **Rubric**.
+
+```
+   ┌─────────────────────────────────────────┐         ┌─────────────────────────────────────────┐
+   │              JSON ARTIFACT              │         │            EVALUATION RUBRIC            │
+   │           (The Execution Proof)         │         │         (The Independent Rules)         │
+   │                                         │         │                                         │
+   │ • User Query (what was asked)           │         │ • System Rubric (judge_instructions.md) │
+   │ • Agent Response (what was generated)   │         │ • Strict Evidence Hierarchy             │
+   │ • Captured Tool Calls & Parameters      │         │ • Quantitative Metric Weights (1.0 sum) │
+   │ • Raw Retrieved Evidence (from BQ/Web)  │         │ • Critical Failure Overrides (0.0 wipe) │
+   └────────────────────┬────────────────────┘         └────────────────────┬────────────────────┘
+                        │                                                   │
+                        └─────────────────────────┬─────────────────────────┘
+                                                  │
+                                                  ▼
+                                    ┌───────────────────────────┐
+                                    │  Gemini 3.8 Flash Judge   │
+                                    │ (Vertex AI / Low Thinking)│
+                                    └─────────────┬─────────────┘
+                                                  │
+                                                  ▼
+                                    ┌───────────────────────────┐
+                                    │   Final Scored Report     │
+                                    │      (e.g., 88.8%)        │
+                                    └───────────────────────────┘
+```
+
+#### What is the JSON Artifact and Where Does It Come From?
+- **Definition:** The JSON Artifact is an immutable, sanitized data file capturing the full execution trace of a single agent turn.
+- **Generator:** Produced by [`scripts/capture_baselines.py`](implimentation/evaluation/scripts/capture_baselines.py).
+- **Location on Disk:** Saved under `implimentation/evaluation/datasets/<category>/baseline_records/<run_id>/<case_id>.json`.
+- **Contents:**
+  1. `user_query`: The original prompt submitted to the agent.
+  2. `agent_response`: The exact response text produced by the agent.
+  3. `captured_tool_calls`: Every tool invoked (e.g., `search_book_knowledge`, `search_research_evidence`, `tavily_search`) along with its arguments.
+  4. `retrieved_evidence`: The raw text chunks, paper titles, and journal excerpts returned from BigQuery or Tavily that the agent had access to.
+  5. `latency_sec`, `errors`, and `execution_status`: Runtime metadata.
+
+> **Why It Matters:** Without the JSON Artifact, an LLM judge would have to guess whether the agent was telling the truth. By providing the exact retrieved evidence in the artifact, the judge can mathematically prove whether an assertion is grounded or a hallucination.
+
+#### What is the Rubric ("Rubiks") and Where Is It Located?
+- **Definition:** The Rubric is the objective grading specification and mathematical framework used by Gemini 3.8 Flash to evaluate the artifact.
+- **Location in Code:**
+  1. **The Qualitative Rules (`config/judge_instructions.md`):** Serves as the system instruction for the judge. It details what constitutes good grounding, how to detect unretrieved citations, and rules for refusing prompt injections.
+  2. **The Quantitative Weights (`config/judge_config.json`):** Defines the mathematical weights for each criterion (summing strictly to 1.0) and the passing threshold (`0.80`).
+
 ---
 
 ## 3. Score Calculation Methodology
