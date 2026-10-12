@@ -78,6 +78,8 @@ document.addEventListener("DOMContentLoaded", () => {
     chartAvailBadge: document.getElementById("chart-avail-badge"),
     btnDemoChart: document.getElementById("btn-demo-chart"),
     sourcesList: document.getElementById("sources-list"),
+    wordCounter: document.getElementById("word-counter"),
+    wordLimitTag: document.getElementById("word-limit-tag"),
   };
 
   // Configure marked.js for clean sanitized rendering
@@ -120,6 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       const message = dom.chatInput.value.trim();
       if (!message || state.isLoading || dom.sendBtn.disabled) return;
+      const wordCount = message.split(/\s+/).filter(Boolean).length;
+      if (wordCount > 500) {
+        alert("Query exceeds the 500-word limit. Please shorten your question before sending.");
+        return;
+      }
       await handleSendMessage(message);
     });
 
@@ -135,10 +142,30 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Auto-resize textarea
+    // Auto-resize textarea & live word counter updates
     dom.chatInput.addEventListener("input", () => {
       dom.chatInput.style.height = "auto";
       dom.chatInput.style.height = Math.min(dom.chatInput.scrollHeight, 140) + "px";
+
+      const val = dom.chatInput.value.trim();
+      const words = val ? val.split(/\s+/).filter(Boolean).length : 0;
+      if (dom.wordCounter) {
+        dom.wordCounter.textContent = words;
+      }
+      if (dom.wordLimitTag) {
+        if (words > 500) {
+          dom.wordLimitTag.classList.remove("warning");
+          dom.wordLimitTag.classList.add("exceeded");
+          dom.sendBtn.disabled = true;
+        } else if (words >= 450) {
+          dom.wordLimitTag.classList.remove("exceeded");
+          dom.wordLimitTag.classList.add("warning");
+          if (!state.isLoading) dom.sendBtn.disabled = false;
+        } else {
+          dom.wordLimitTag.classList.remove("warning", "exceeded");
+          if (!state.isLoading) dom.sendBtn.disabled = false;
+        }
+      }
     });
 
     // Quick suggestion cards

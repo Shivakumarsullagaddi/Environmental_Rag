@@ -19,8 +19,9 @@ logger = logging.getLogger("environmental_security")
 # Configuration & Constants
 # ------------------------------------------------------------------------------
 COOKIE_NAME = "env_visitor_id"
-MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "8000"))
-MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", "65536"))  # 64 KB
+MAX_WORDS_LIMIT = 500
+MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "3000"))  # ~500 words (6 chars/word)
+MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", "16384"))  # 16 KB raw payload limit
 RATE_LIMIT_GLOBAL_PER_MIN = int(os.getenv("RATE_LIMIT_GLOBAL_PER_MIN", "60"))
 RATE_LIMIT_EXPENSIVE_PER_MIN = int(os.getenv("RATE_LIMIT_EXPENSIVE_PER_MIN", "15"))
 MAX_TOOL_CALLS_PER_TURN = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "5"))
@@ -186,8 +187,9 @@ class SecurityGuardian:
             return False, "Query cannot be empty."
 
         clean = query.strip()
-        if len(clean) > MAX_MESSAGE_LENGTH:
-            return False, f"Query exceeds maximum allowed length of {MAX_MESSAGE_LENGTH} characters."
+        word_count = len(clean.split())
+        if len(clean) > MAX_MESSAGE_LENGTH or word_count > MAX_WORDS_LIMIT:
+            return False, f"Query exceeds maximum allowed limit of {MAX_WORDS_LIMIT} words ({MAX_MESSAGE_LENGTH} characters). Please provide a concise question or summary."
 
         # 1. Check for explicit code execution requests
         for pat in CODE_EXEC_PATTERNS:

@@ -125,7 +125,7 @@ def test_unknown_session_id_rejection():
 # TEST 4: Oversized Request Rejection
 # ==============================================================================
 def test_oversized_message_length_rejection():
-    """Messages exceeding MAX_MESSAGE_LENGTH (8,000 characters) are rejected with 422."""
+    """Messages exceeding MAX_MESSAGE_LENGTH (3,000 characters / 500 words) are rejected with 422."""
     headers = {"X-Visitor-Id": "v_test_oversized_user_123456"}
     conv_resp = client.post("/api/conversations", headers=headers)
     session_id = conv_resp.json()["session_id"]
@@ -140,10 +140,10 @@ def test_oversized_message_length_rejection():
 
 
 def test_oversized_request_body_rejection():
-    """Raw payload exceeding 64 KB is rejected with HTTP 413."""
+    """Raw payload exceeding 16 KB is rejected with HTTP 413."""
     headers = {
         "X-Visitor-Id": "v_test_large_body_user_1234",
-        "Content-Length": "70000",
+        "Content-Length": "20000",
     }
     resp = client.post(
         "/api/conversations",
