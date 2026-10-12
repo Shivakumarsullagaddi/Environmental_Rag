@@ -1374,28 +1374,56 @@ html, body {
 
 .chart-empty-state {
   text-align: center;
-  padding: 40px 16px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  background-color: var(--bg-card);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
 }
 
 .chart-empty-state .empty-icon {
-  font-size: 36px;
-  margin-bottom: 12px;
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.8;
 }
 
 .chart-empty-state h3 {
-  font-size: 15px;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
 }
 
 .chart-empty-state p {
-  font-size: 12.5px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  margin-bottom: 18px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin-bottom: 14px;
+  max-width: 280px;
+}
+
+.btn-chart-demo {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  color: var(--accent-blue-soft);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-chart-demo:hover {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: var(--accent-blue-soft);
+  color: #ffffff;
 }
 
 .btn-sm {

@@ -189,7 +189,7 @@ class SecurityGuardian:
         clean = query.strip()
         word_count = len(clean.split())
         if len(clean) > MAX_MESSAGE_LENGTH or word_count > MAX_WORDS_LIMIT:
-            return False, f"Query exceeds maximum allowed limit of {MAX_WORDS_LIMIT} words ({MAX_MESSAGE_LENGTH} characters). Please provide a concise question or summary."
+            return False, "Word limit exceeded (max 500 words)."
 
         # 1. Check for explicit code execution requests
         for pat in CODE_EXEC_PATTERNS:
@@ -301,9 +301,10 @@ class RequestBodyLimitMiddleware(BaseHTTPMiddleware):
             try:
                 if int(content_length) > self.max_bytes:
                     logger.warning(f"[SECURITY][BODY_LIMIT] Request exceeded Content-Length limit: {content_length} bytes")
+                    kb_size = self.max_bytes // 1024
                     return JSONResponse(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                        content={"detail": f"Request body too large. Maximum allowed size is {self.max_bytes} bytes."},
+                        content={"detail": f"Payload size exceeded (max {kb_size} KB)."},
                     )
             except ValueError:
                 pass

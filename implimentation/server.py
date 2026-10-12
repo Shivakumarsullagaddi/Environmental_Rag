@@ -23,6 +23,7 @@ if str(_root) not in sys.path:
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -141,11 +142,51 @@ else:
         allow_headers=["*"],
     )
 
-# Global Exception Handler (Safe error reporting without leaking tracebacks)
+# Global Exception Handlers (Safe error reporting without leaking tracebacks or [object Object])
+@api_app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Formats Pydantic/FastAPI validation errors into a clean, concise single-line message."""
+    errors = exc.errors()
+    # Check if any error is due to string/message length
+    is_length_error = any("length" in err.get("type", "") or "max_length" in err.get("type", "") for err in errors)
+    if is_length_error:
+        detail_msg = "Word limit exceeded (max 500 words)."
+    else:
+        # Build concise error message from first error
+        first_err = errors[0] if errors else {}
+        detail_msg = first_err.get("msg", "Invalid request parameters.")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": detail_msg},
+    )
+
+
+@api_app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Ensures HTTPExceptions return clean string details without raw dict payloads."""
+    detail = exc.detail
+    if isinstance(detail, list):
+        detail = "; ".join(str(d.get("msg", d) if isinstance(d, dict) else d) for d in detail)
+    elif isinstance(detail, dict):
+        detail = detail.get("message") or detail.get("detail") or str(detail)
+    headers = getattr(exc, "headers", None)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": str(detail)},
+        headers=headers,
+    )
+
+
 @api_app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     err_id = str(uuid.uuid4())
     logger.error(f"[SERVER][EXCEPTION] error_id={err_id} path={request.url.path} error={exc}", exc_info=True)
+    err_str = str(exc).lower()
+    if "resource_exhausted" in err_str or "quota" in err_str or "rate limit" in err_str:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": "Model quota exhausted. Please try again shortly.", "error_id": err_id},
+        )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An internal server error occurred.", "error_id": err_id},
@@ -1005,8 +1046,14 @@ async def stream_adk_agent(
                     m["text"] = "Scientific reasoning error encountered."
                     m["content"] = m["text"]
                     break
-        _sse_seq += 1
-        _err_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'error', 'message': str(e)})
+        err_str = str(e).lower()
+        if "resource_exhausted" in err_str or "quota" in err_str or "rate limit" in err_str:
+            clean_err_msg = "Model quota exhausted. Please try again shortly."
+        elif "word" in err_str or "500 words" in err_str or "character" in err_str:
+            clean_err_msg = "Word limit exceeded (max 500 words)."
+        else:
+            clean_err_msg = str(e)
+        _err_payload = json.dumps({'request_id': req_id, 'session_id': session_id, 'type': 'error', 'message': clean_err_msg})
         logger.info(
             "[BACKEND][SSE][SEND] request_id=%s event_type=error sequence_number=%d payload_size=%d",
             req_id, _sse_seq, len(_err_payload)
@@ -1262,7 +1309,7 @@ async def create_conversation(request: Request):
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please wait before creating another session.",
+            detail="Rate limit exceeded. Please wait a moment.",
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -1369,7 +1416,7 @@ async def send_message_to_conversation(
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please wait before submitting another query.",
+            detail="Rate limit exceeded. Please wait a moment.",
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -1465,7 +1512,7 @@ async def stream_message_to_conversation(session_id: str, req: MessageRequest, r
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please wait before submitting another query.",
+            detail="Rate limit exceeded. Please wait a moment.",
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -1505,7 +1552,7 @@ async def chat_endpoint(req: MessageRequest, request: Request):
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please wait before submitting another query.",
+            detail="Rate limit exceeded. Please wait a moment.",
             headers={"Retry-After": str(retry_after)},
         )
 
