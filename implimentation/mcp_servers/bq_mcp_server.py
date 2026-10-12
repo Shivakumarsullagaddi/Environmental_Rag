@@ -162,7 +162,6 @@ async def get_paper_metadata(paper_id_or_title: str) -> str:
     clean_val = paper_id_or_title.strip()[:256] if paper_id_or_title else ""
     return await asyncio.to_thread(_get_paper_meta_sync, clean_val)
 
-
 if __name__ == "__main__":
     mcp.run(transport="stdio")
 
