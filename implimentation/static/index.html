@@ -167,11 +167,17 @@
 
       <!-- Chat Input Bar -->
       <div class="chat-input-area">
+        <div class="input-header-bar">
+          <span class="input-header-title">Ask Environmental AI Scientist</span>
+          <span class="word-limit-tag" id="word-limit-tag">
+            <span id="word-counter">0</span> / 500 words max
+          </span>
+        </div>
         <form class="input-form" id="chat-form">
           <textarea
             class="chat-textarea"
             id="chat-input"
-            placeholder="Ask an environmental science question or enter site measurements..."
+            placeholder="Ask an environmental science question or enter site measurements (max 500 words)..."
             rows="1"
             required
           ></textarea>
@@ -183,12 +189,7 @@
           </button>
         </form>
         <div class="input-footer">
-          <div class="input-footer-left">
-            <span>Press <strong>Enter</strong> to send, <strong>Shift + Enter</strong> for new line</span>
-            <span class="word-limit-tag" id="word-limit-tag">
-              <span id="word-counter">0</span> / 500 words
-            </span>
-          </div>
+          <span>Press <strong>Enter</strong> to send, <strong>Shift + Enter</strong> for new line</span>
           <span class="provenance-note">Evidence strictly grounded in BigQuery & verified external sources</span>
         </div>
       </div>

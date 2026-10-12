@@ -600,7 +600,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.detail || `Server error: ${resp.status}`);
+        let errMsg = `Server error: ${resp.status}`;
+        if (errData && errData.detail) {
+          if (typeof errData.detail === "string") {
+            errMsg = errData.detail;
+          } else if (Array.isArray(errData.detail)) {
+            // Pydantic 422 validation errors array
+            errMsg = errData.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+          } else if (typeof errData.detail === "object") {
+            errMsg = errData.detail.msg || errData.detail.message || JSON.stringify(errData.detail);
+          }
+        }
+        throw new Error(errMsg);
       }
 
       // Fallback for non-streaming JSON responses
