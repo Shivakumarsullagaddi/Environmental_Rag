@@ -167,18 +167,13 @@
 
       <!-- Chat Input Bar -->
       <div class="chat-input-area">
-        <div class="input-header-bar">
-          <span class="input-header-title">Ask Environmental AI Scientist</span>
-          <span class="word-limit-tag" id="word-limit-tag">
-            <span id="word-counter">0</span> / 500 words max
-          </span>
-        </div>
-        <form class="input-form" id="chat-form" novalidate>
+        <form class="input-form" id="chat-form">
           <textarea
             class="chat-textarea"
             id="chat-input"
-            placeholder="Ask an environmental science question or enter site measurements (max 500 words)..."
+            placeholder="Ask an environmental science question or enter site measurements..."
             rows="1"
+            required
           ></textarea>
           <button type="submit" class="btn btn-send" id="send-btn" title="Send query">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -296,8 +291,8 @@
               <p>
                 Scientific charts render dynamically when responses include quantitative comparison, effect sizes, or taxonomic distributions from retrieved evidence.
               </p>
-              <button class="btn-chart-demo" id="btn-demo-chart">
-                Run chart example
+              <button class="btn btn-secondary btn-sm" id="btn-demo-chart">
+                Run Chart Example
               </button>
             </div>
             <div class="chart-active-card" id="chart-active-card" style="display: none;">

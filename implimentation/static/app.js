@@ -31,60 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  function formatUserFacingError(errData, fallbackStatus = 500) {
-    if (!errData) return `Server error: ${fallbackStatus}`;
-    if (typeof errData === "string") {
-      let str = errData.trim();
-      // Remove technical prefixes if present
-      str = str.replace(/^Error:\s*/i, "");
-      // Detect specific errors
-      const lower = str.toLowerCase();
-      if (lower.includes("word limit") || lower.includes("500 words") || lower.includes("too long") || lower.includes("max_length")) {
-        return "Word limit exceeded (max 500 words).";
-      }
-      if (lower.includes("payload size") || lower.includes("request body too large") || lower.includes("413") || lower.includes("16 kb") || lower.includes("16384")) {
-        return "Payload size exceeded (max 16 KB).";
-      }
-      if (lower.includes("rate limit") || lower.includes("too many requests") || lower.includes("429")) {
-        return "Rate limit exceeded. Please wait a moment.";
-      }
-      if (lower.includes("quota") || lower.includes("resource_exhausted") || lower.includes("resource exhausted")) {
-        return "Model quota exhausted. Please try again shortly.";
-      }
-      return str || `Server error: ${fallbackStatus}`;
+  function generateUUID() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
     }
-
-    if (errData.detail) {
-      const detail = errData.detail;
-      if (typeof detail === "string") {
-        return formatUserFacingError(detail, fallbackStatus);
-      }
-      if (Array.isArray(detail)) {
-        // Pydantic validation errors list
-        for (const item of detail) {
-          if (item && typeof item === "object") {
-            const loc = Array.isArray(item.loc) ? item.loc.join(".") : "";
-            const msg = item.msg || "";
-            const type = item.type || "";
-            if (msg.includes("3000") || msg.includes("length") || type.includes("length") || loc.includes("message")) {
-              return "Word limit exceeded (max 500 words).";
-            }
-          }
-        }
-        const firstMsg = detail[0] ? (detail[0].msg || JSON.stringify(detail[0])) : "";
-        return formatUserFacingError(firstMsg, fallbackStatus);
-      }
-      if (typeof detail === "object") {
-        const msg = detail.msg || detail.message || detail.detail;
-        if (msg) return formatUserFacingError(msg, fallbackStatus);
-      }
-    }
-
-    if (errData.message && typeof errData.message === "string") {
-      return formatUserFacingError(errData.message, fallbackStatus);
-    }
-
-    return `Server error: ${fallbackStatus}`;
+    return "req-" + Date.now() + "-" + Math.random().toString(36).substring(2, 11);
   }
 
   // --------------------------------------------------------------------------
@@ -127,8 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
     chartAvailBadge: document.getElementById("chart-avail-badge"),
     btnDemoChart: document.getElementById("btn-demo-chart"),
     sourcesList: document.getElementById("sources-list"),
-    wordCounter: document.getElementById("word-counter"),
-    wordLimitTag: document.getElementById("word-limit-tag"),
   };
 
   // Configure marked.js for clean sanitized rendering
@@ -170,12 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.chatForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const message = dom.chatInput.value.trim();
-      if (!message || state.isLoading) return;
-      const wordCount = message.split(/\s+/).filter(Boolean).length;
-      if (wordCount > 500) {
-        alert("Query exceeds the 500-word limit (max 500 words). Please shorten your question before sending.");
-        return;
-      }
+      if (!message || state.isLoading || dom.sendBtn.disabled) return;
       await handleSendMessage(message);
     });
 
@@ -183,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.chatInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (state.isLoading) {
+        if (state.isLoading || dom.sendBtn.disabled) {
           // Do not send while agent is actively generating; preserve user input intact
           return;
         }
@@ -191,39 +135,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Auto-resize textarea & live word counter updates
-    function updateWordCounter() {
-      if (!dom.chatInput) return;
+    // Auto-resize textarea
+    dom.chatInput.addEventListener("input", () => {
       dom.chatInput.style.height = "auto";
       dom.chatInput.style.height = Math.min(dom.chatInput.scrollHeight, 140) + "px";
-
-      const val = dom.chatInput.value.trim();
-      const words = val ? val.split(/\s+/).filter(Boolean).length : 0;
-      if (dom.wordCounter) {
-        dom.wordCounter.textContent = words;
-      }
-      if (dom.wordLimitTag) {
-        if (words > 500) {
-          dom.wordLimitTag.classList.remove("warning");
-          dom.wordLimitTag.classList.add("exceeded");
-          dom.sendBtn.disabled = true;
-        } else if (words >= 450) {
-          dom.wordLimitTag.classList.remove("exceeded");
-          dom.wordLimitTag.classList.add("warning");
-          if (!state.isLoading) dom.sendBtn.disabled = false;
-        } else {
-          dom.wordLimitTag.classList.remove("warning", "exceeded");
-          if (!state.isLoading) dom.sendBtn.disabled = false;
-        }
-      }
-    }
-
-    dom.chatInput.addEventListener("input", updateWordCounter);
-    dom.chatInput.addEventListener("keyup", updateWordCounter);
-    dom.chatInput.addEventListener("change", updateWordCounter);
-    dom.chatInput.addEventListener("paste", () => {
-      // Allow clipboard data to populate textarea DOM before calculating word count
-      setTimeout(updateWordCounter, 0);
     });
 
     // Quick suggestion cards
@@ -530,33 +445,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Message Handling & Execution
   // --------------------------------------------------------------------------
   async function handleSendMessage(messageText) {
-    if (state.isLoading) return;
-
-    // Self-healing: if session is not yet created or active, create one immediately
-    if (!state.activeSessionId) {
-      try {
-        const sessResp = await fetch("/api/conversations", { method: "POST" });
-        if (sessResp.ok) {
-          const sessData = await sessResp.json();
-          state.activeSessionId = sessData.session_id;
-          if (dom.sessionIdVal) {
-            dom.sessionIdVal.textContent = state.activeSessionId.length > 18
-              ? state.activeSessionId.slice(0, 8) + "..." + state.activeSessionId.slice(-6)
-              : state.activeSessionId;
-          }
-        }
-      } catch (e) {
-        console.warn("Could not pre-provision session; proceeding with fallback chat:", e);
-      }
-    }
+    if (state.isLoading || dom.sendBtn.disabled) return;
 
     state.isLoading = true;
     dom.sendBtn.disabled = true;
     dom.sendBtn.title = "Generating response...";
     dom.chatInput.value = "";
     dom.chatInput.style.height = "auto";
-    if (dom.wordCounter) dom.wordCounter.textContent = "0";
-    if (dom.wordLimitTag) dom.wordLimitTag.classList.remove("warning", "exceeded");
 
     // Hide welcome hero if visible
     if (dom.welcomeHero) {
@@ -678,8 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
-        const errMsg = formatUserFacingError(errData, resp.status);
-        throw new Error(errMsg);
+        throw new Error(errData.detail || `Server error: ${resp.status}`);
       }
 
       // Fallback for non-streaming JSON responses
@@ -831,17 +725,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             // ─────────────────────────────────────────────────────────────
 
-            // Resolve targetController: prefer exact evtRequestId match, otherwise fall back to current send's assistantController
-            let targetController = null;
-            if (evtRequestId && activeRequests.has(evtRequestId)) {
-              targetController = activeRequests.get(evtRequestId);
-            } else if (assistantController) {
-              targetController = assistantController;
-            }
-
-            if (!targetController) {
+            // Ignore events that are missing request_id or do not match an active request
+            if (!evtRequestId || !activeRequests.has(evtRequestId)) {
               continue;
             }
+
+            const targetController = activeRequests.get(evtRequestId);
 
             // 1. START EVENT
             if (eventData.type === "start") {
@@ -1163,11 +1052,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const cursor = markdownBody.querySelector(".streaming-cursor");
         if (cursor) cursor.remove();
-        const cleanMsg = formatUserFacingError(errorMsg);
         if (!accumulated) {
-          markdownBody.innerHTML = `<div class="error-msg-bubble">⚠️ ${escapeHtml(cleanMsg)}</div>`;
+          markdownBody.innerHTML = `<div class="error-msg-bubble">⚠️ ${escapeHtml(errorMsg)}</div>`;
         } else {
-          markdownBody.innerHTML += `<div class="error-msg-bubble" style="margin-top: 8px;">⚠️ ${escapeHtml(cleanMsg)}</div>`;
+          markdownBody.innerHTML += `<div class="error-msg-bubble" style="margin-top: 8px;">⚠️ ${escapeHtml(errorMsg)}</div>`;
         }
         scrollToBottom();
       }
@@ -1238,7 +1126,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function appendErrorMessage(errorMsg) {
-    const cleanMsg = formatUserFacingError(errorMsg);
     const msgEl = document.createElement("div");
     msgEl.className = "chat-message message-assistant";
     msgEl.innerHTML = `
@@ -1249,12 +1136,14 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="timestamp">${formatTimeString(new Date().toISOString())}</span>
         </div>
         <div class="markdown-body" style="color: #fca5a5;">
-          <p>⚠️ ${escapeHtml(cleanMsg)}</p>
+          <p><strong>Reasoning interrupted:</strong> ${escapeHtml(errorMsg)}</p>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+            Please verify network connectivity, BigQuery permissions, and try again.
+          </p>
         </div>
       </div>
     `;
     dom.messagesContainer.appendChild(msgEl);
-    scrollToBottom();
   }
 
   /**
